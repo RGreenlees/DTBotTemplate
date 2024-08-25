@@ -29,6 +29,8 @@
 #include "fastlz.c"
 #include "DetourAlloc.h"
 
+#include "nav_constants.h"
+
 #include <cfloat>
 
 using namespace std;
@@ -225,31 +227,7 @@ struct MeshProcess : public dtTileCacheMeshProcess
 		// Update poly flags from areas.
 		for (int i = 0; i < params->polyCount; ++i)
 		{
-			if (polyAreas[i] == DT_TILECACHE_WALKABLE_AREA)
-			{
-				polyAreas[i] = SAMPLE_POLYAREA_GROUND;
-				polyFlags[i] = SAMPLE_POLYFLAGS_WALK;
-			}
-			else if (polyAreas[i] == DT_TILECACHE_CROUCH_AREA)
-			{
-				polyAreas[i] = SAMPLE_POLYAREA_CROUCH;
-				polyFlags[i] = SAMPLE_POLYFLAGS_WALK;
-			}
-			else if (polyAreas[i] == DT_TILECACHE_LADDER_AREA)
-			{
-				polyAreas[i] = SAMPLE_POLYAREA_GROUND;
-				polyFlags[i] = SAMPLE_POLYFLAGS_LADDER;
-			}
-			else if (polyAreas[i] == DT_TILECACHE_BLOCKED_AREA)
-			{
-				polyAreas[i] = SAMPLE_POLYAREA_BLOCKED;
-				polyFlags[i] = SAMPLE_POLYFLAGS_BLOCKED;
-			}
-			else if (polyAreas[i] == DT_TILECACHE_DOOR_AREA)
-			{
-				polyAreas[i] = SAMPLE_POLYAREA_OBSTRUCTION;
-				polyFlags[i] = SAMPLE_POLYFLAGS_DOOR;
-			}
+			polyFlags[i] = GetFlagForArea((NavArea)polyAreas[i]);
 		}
 
 	}

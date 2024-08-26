@@ -10,6 +10,8 @@
 #include <dllapi.h>
 #include <meta_api.h>
 
+#include "nav_constants.h"
+
 #include <unordered_map>
 
 #include <fstream>
@@ -180,26 +182,11 @@ void AIDEBUG_DrawBotPath(AvHAIPlayer* pBot, float DrawTime)
 	{
 		bot_path_node CurrentNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
-		switch (CurrentNode.flag)
-		{
-		case SAMPLE_POLYFLAGS_DOOR:
-			UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, CurrentNode.Location, DrawTime, 255, 0, 0);
-			break;
-		case SAMPLE_POLYFLAGS_JUMP:
-		case SAMPLE_POLYFLAGS_DUCKJUMP:
-			UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, CurrentNode.Location, DrawTime, 255, 255, 0);
-			break;
-		case SAMPLE_POLYFLAGS_LADDER:
-		case SAMPLE_POLYFLAGS_LIFT:
-			UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, CurrentNode.Location, DrawTime, 0, 0, 255);
-			break;
-		case SAMPLE_POLYFLAGS_BLOCKED:
-			UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, CurrentNode.Location, DrawTime, 128, 128, 128);
-			break;
-		default:
-			UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, CurrentNode.Location, DrawTime);
-			break;
-		}
+		unsigned char R, G, B;
+
+		GetDebugColorForFlag((NavMovementFlag)CurrentNode.flag, R, G, B);
+
+		UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, CurrentNode.Location, DrawTime, R, G, B);
 	}
 }
 
@@ -212,26 +199,11 @@ void AIDEBUG_DrawPath(std::vector<bot_path_node>& path, float DrawTime)
 		Vector FromLoc = it->FromLocation;
 		Vector ToLoc = it->Location;
 
-		switch (it->flag)
-		{
-		case SAMPLE_POLYFLAGS_DOOR:
-			UTIL_DrawLine(INDEXENT(1), FromLoc, ToLoc, DrawTime, 255, 0, 0);
-			break;
-		case SAMPLE_POLYFLAGS_JUMP:
-		case SAMPLE_POLYFLAGS_DUCKJUMP:
-			UTIL_DrawLine(INDEXENT(1), FromLoc, ToLoc, DrawTime, 255, 255, 0);
-			break;
-		case SAMPLE_POLYFLAGS_LADDER:
-		case SAMPLE_POLYFLAGS_LIFT:
-			UTIL_DrawLine(INDEXENT(1), FromLoc, ToLoc, DrawTime, 0, 0, 255);
-			break;
-		case SAMPLE_POLYFLAGS_BLOCKED:
-			UTIL_DrawLine(INDEXENT(1), FromLoc, ToLoc, DrawTime, 128, 128, 128);
-			break;
-		default:
-			UTIL_DrawLine(INDEXENT(1), FromLoc, ToLoc, DrawTime);
-			break;
-		}
+		unsigned char R, G, B;
+
+		GetDebugColorForFlag((NavMovementFlag)it->flag, R, G, B);
+
+		UTIL_DrawLine(INDEXENT(1), FromLoc, ToLoc, DrawTime, R, G, B);
 	}
 }
 

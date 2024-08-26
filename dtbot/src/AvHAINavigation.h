@@ -18,6 +18,7 @@
 #include "DetourNavMeshQuery.h"
 #include "DetourTileCache.h"
 #include "AvHAIPlayer.h"
+#include "nav_constants.h"
 
 /*	Navigation profiles determine which nav mesh (regular, onos, building) is used for queries, and what
 	types of movement are allowed and their costs. For example, marine nav profile uses regular nav mesh,
@@ -31,42 +32,6 @@ constexpr auto PLAYER_BASE_NAV_PROFILE = 0;
 constexpr auto ALL_NAV_PROFILE = 1;
 
 constexpr auto MAX_PATH_POLY = 512; // Max nav mesh polys that can be traversed in a path. This should be sufficient for any sized map.
-
-// Possible area types. Water, Road, Door and Grass are not used (left-over from Detour library)
-enum SamplePolyAreas
-{
-	SAMPLE_POLYAREA_GROUND			= 0,	// Regular ground movement
-	SAMPLE_POLYAREA_CROUCH			= 1,	// Requires crouched movement
-	SAMPLE_POLYAREA_BLOCKED			= 2,	// Requires a jump to get over
-	SAMPLE_POLYAREA_FALLDAMAGE		= 3,	// Requires taking fall damage (if not immune to it)
-	SAMPLE_POLYAREA_OBSTRUCTION		= 5,	// There is a door or weldable object in the way
-	SAMPLE_POLYAREA_LADDER			= 8,		// Phase gate area, for area cost calculation
-	SAMPLE_POLYAREA_LIFT			= 9,		// Phase gate area, for area cost calculation
-};
-
-// Possible movement types. Swim and door are not used
-enum SamplePolyFlags
-{
-	SAMPLE_POLYFLAGS_WALK = 1 << 0,	// Simple walk to traverse
-	SAMPLE_POLYFLAGS_FALL = 1 << 1,	// Required dropping down
-	SAMPLE_POLYFLAGS_BLOCKED = 1 << 2,	// Blocked by an obstruction, but can be jumped over
-	SAMPLE_POLYFLAGS_WALLCLIMB = 1 << 3,	// Requires climbing a wall to traverse
-	SAMPLE_POLYFLAGS_LADDER = 1 << 4,	// Requires climbing a ladder to traverse
-	SAMPLE_POLYFLAGS_JUMP = 1 << 5,	// Requires a regular jump to traverse
-	SAMPLE_POLYFLAGS_DUCKJUMP = 1 << 6,	// Requires a duck-jump to traverse
-	SAMPLE_POLYFLAGS_FLY = 1 << 7,	// Requires lerk or jetpack to traverse
-	SAMPLE_POLYFLAGS_NOONOS = 1 << 8,	// This movement is not allowed by onos
-	SAMPLE_POLYFLAGS_TEAM1PHASEGATE = 1 << 9,	// Requires using a phase gate to traverse (team 1 only)
-	SAMPLE_POLYFLAGS_TEAM2PHASEGATE = 1 << 10,	// Requires using a phase gate to traverse (team 2 only)
-	SAMPLE_POLYFLAGS_TEAM1STRUCTURE = 1 << 11,	// A team 1 structure is in the way that cannot be jumped over. Impassable to team 1 players (assume cannot teamkill own structures)
-	SAMPLE_POLYFLAGS_TEAM2STRUCTURE = 1 << 12,	// A team 2 structure is in the way that cannot be jumped over. Impassable to team 2 players (assume cannot teamkill own structures)
-	SAMPLE_POLYFLAGS_WELD = 1 << 13,	// Requires a welder to get through here
-	SAMPLE_POLYFLAGS_DOOR = 1 << 14,	// Requires a welder to get through here
-	SAMPLE_POLYFLAGS_LIFT = 1 << 15,	// Requires using a lift or moving platform
-
-	SAMPLE_POLYFLAGS_DISABLED = 1 << 16,	// Disabled, not usable by anyone
-	SAMPLE_POLYFLAGS_ALL = -1	// All abilities.
-};
 
 typedef struct _DYNAMIC_MAP_PROTOTYPE
 {
@@ -202,7 +167,7 @@ Vector UTIL_GetRandomPointOnNavmeshInRadiusIgnoreReachability(const nav_profile&
 
 	Returns ZERO_VECTOR if none found
 */
-Vector UTIL_GetRandomPointOnNavmeshInRadiusOfAreaType(SamplePolyFlags Flag, const Vector origin, const float MaxRadius);
+Vector UTIL_GetRandomPointOnNavmeshInRadiusOfAreaType(NavMovementFlag Flag, const Vector origin, const float MaxRadius);
 
 /*	Finds any random point on the navmesh of the area type (e.g. crouch area) that is relevant for the bot within the min and max radius of the origin point,
 	taking reachability into account(will not return impossible to reach location).
@@ -228,21 +193,21 @@ bool BotIsAtLocation(const AvHAIPlayer* pBot, const Vector Destination);
 void NewMove(AvHAIPlayer* pBot);
 // Returns true if the bot has completed the current movement along their path
 bool HasBotReachedPathPoint(const AvHAIPlayer* pBot);
-bool HasBotCompletedLadderMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
-bool HasBotCompletedWalkMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
-bool HasBotCompletedFallMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
-bool HasBotCompletedJumpMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
-bool HasBotCompletedLiftMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
-bool HasBotCompletedObstacleMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
+bool HasBotCompletedLadderMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
+bool HasBotCompletedWalkMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
+bool HasBotCompletedFallMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
+bool HasBotCompletedJumpMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
+bool HasBotCompletedLiftMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
+bool HasBotCompletedObstacleMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
 
 // Returns true if the bot is considered to have strayed off the path (e.g. missed a jump and fallen)
 bool IsBotOffPath(const AvHAIPlayer* pBot);
-bool IsBotOffLadderNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
-bool IsBotOffWalkNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
-bool IsBotOffFallNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
-bool IsBotOffJumpNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
-bool IsBotOffLiftNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
-bool IsBotOffObstacleNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag);
+bool IsBotOffLadderNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
+bool IsBotOffWalkNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
+bool IsBotOffFallNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
+bool IsBotOffJumpNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
+bool IsBotOffLiftNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
+bool IsBotOffObstacleNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
 
 // Called by NewMove, determines the movement direction and inputs required to walk/crouch between start and end points
 void GroundMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint);
@@ -255,8 +220,8 @@ void FallMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint)
 // Called by NewMove, determines the movement direction and inputs required to climb a ladder to reach endpoint
 void LadderMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight, unsigned char NextArea);
 
-// Called by NewMove, determines the movement direction and inputs required to use a lift to reach an end point
-void LiftMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint);
+// Called by NewMove, determines the movement direction and inputs required to use a moving platform to reach an end point
+void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint);
 
 bool UTIL_TriggerHasBeenRecentlyActivated(edict_t* TriggerEntity);
 
@@ -449,8 +414,6 @@ dtPolyRef UTIL_GetNearestPolyRefForLocation(const nav_profile& NavProfile, const
 unsigned char UTIL_GetNavAreaAtLocation(const Vector Location);
 unsigned char UTIL_GetNavAreaAtLocation(const nav_profile& NavProfile, const Vector Location);
 
-// For printing out human-readable nav mesh areas
-const char* UTIL_NavmeshAreaToChar(const unsigned char Area);
 
 
 
@@ -552,7 +515,7 @@ void NAV_ForceActivateTrigger(AvHAIPlayer* pBot, DynamicMapObject* TriggerRef);
 
 void DEBUG_PrintObjectInfo(DynamicMapObject* Object);
 
-NavOffMeshConnection* NAV_GetNearestOffMeshConnectionToPoint(const Vector SearchPoint, SamplePolyFlags SearchFlags);
+NavOffMeshConnection* NAV_GetNearestOffMeshConnectionToPoint(const Vector SearchPoint, NavMovementFlag SearchFlags);
 
 void GetDesiredPlatformStartAndEnd(DynamicMapObject* PlatformRef, Vector EmbarkPoint, Vector DisembarkPoint, DynamicMapObjectStop& StartLocation, DynamicMapObjectStop& EndLocation);
 

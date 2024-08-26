@@ -888,7 +888,7 @@ void DTBot_ServerCommand(void)
 			}
 			else
 			{
-				BlockingObject = UTIL_GetObjectBlockingPathPoint(StartTrace, EndTrace, SAMPLE_POLYFLAGS_WALK, nullptr);
+				BlockingObject = UTIL_GetObjectBlockingPathPoint(StartTrace, EndTrace, NAV_FLAG_WALK, nullptr);
 			}
 
 			if (BlockingObject)

@@ -29,8 +29,6 @@
 #include "fastlz.c"
 #include "DetourAlloc.h"
 
-#include "nav_constants.h"
-
 #include <cfloat>
 
 using namespace std;
@@ -352,27 +350,12 @@ void AIDEBUG_DrawOffMeshConnections(float DrawTime)
 
 			Vector StartLine = Vector(con->pos[0], -con->pos[2], con->pos[1]);
 			Vector EndLine = Vector(con->pos[3], -con->pos[5], con->pos[4]);
-			switch (con->flags)
-			{
-				case SAMPLE_POLYFLAGS_WALK:
-					UTIL_DrawLine(INDEXENT(1), StartLine, EndLine, DrawTime, 255, 255, 255);
-					break;
-				case SAMPLE_POLYFLAGS_JUMP:
-					UTIL_DrawLine(INDEXENT(1), StartLine, EndLine, DrawTime, 255, 255, 0);
-					break;
-				case SAMPLE_POLYFLAGS_FALL:
-					UTIL_DrawLine(INDEXENT(1), StartLine, EndLine, DrawTime, 255, 0, 0);
-					break;
-				case SAMPLE_POLYFLAGS_LADDER:
-					UTIL_DrawLine(INDEXENT(1), StartLine, EndLine, DrawTime, 0, 0, 255);
-					break;
-				case SAMPLE_POLYFLAGS_DISABLED:
-					UTIL_DrawLine(INDEXENT(1), StartLine, EndLine, DrawTime, 128, 128, 128);
-					break;
-				default:
-					UTIL_DrawLine(INDEXENT(1), StartLine, EndLine, DrawTime, 0, 255, 255);
-					break;
-			}
+
+			unsigned char R, G, B;
+
+			GetDebugColorForFlag((NavMovementFlag)con->flags, R, G, B);
+
+			UTIL_DrawLine(INDEXENT(1), StartLine, EndLine, DrawTime, R, G, B);
 		}
 
 	}
@@ -880,7 +863,7 @@ bool LoadNavMesh(const char* mapname)
 
 		unsigned char area = def.area;
 
-		if (def.flags & SAMPLE_POLYFLAGS_LADDER)
+		if (def.flags & NAV_FLAG_LADDER)
 		{
 			area = SAMPLE_POLYAREA_LADDER;
 		}
@@ -1024,7 +1007,7 @@ Vector UTIL_GetRandomPointOnNavmesh(const AvHAIPlayer* pBot)
 	return Result;
 }
 
-Vector UTIL_GetRandomPointOnNavmeshInRadiusOfAreaType(SamplePolyFlags Flag, const Vector origin, const float MaxRadius)
+Vector UTIL_GetRandomPointOnNavmeshInRadiusOfAreaType(NavMovementFlag Flag, const Vector origin, const float MaxRadius)
 {
 	const dtNavMeshQuery* m_NavQuery = UTIL_GetNavMeshQueryForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
 
@@ -1264,8 +1247,8 @@ dtStatus FindFlightPathToPoint(const nav_profile &NavProfile, Vector FromLocatio
 		bot_path_node NewPathNode;
 		NewPathNode.FromLocation = FromLocation;
 		NewPathNode.Location = ToLocation;
-		NewPathNode.area = SAMPLE_POLYAREA_GROUND;
-		NewPathNode.flag = SAMPLE_POLYFLAGS_WALK;
+		NewPathNode.area = NAV_AREA_WALK;
+		NewPathNode.flag = NAV_FLAG_WALK;
 		NewPathNode.poly = 0;
 		NewPathNode.requiredZ = ToLocation.z;
 
@@ -1380,7 +1363,7 @@ dtStatus FindFlightPathToPoint(const nav_profile &NavProfile, Vector FromLocatio
 		m_navMesh->getPolyArea(StraightPolyPath[nVert], &ThisArea);
 		m_navMesh->getPolyFlags(StraightPolyPath[nVert], &ThisFlags);
 
-		if (ThisArea == SAMPLE_POLYAREA_GROUND || ThisArea == SAMPLE_POLYAREA_CROUCH)
+		if (ThisArea == NAV_AREA_WALK || ThisArea == NAV_AREA_CROUCH)
 		{
 			NextPathPoint = UTIL_AdjustPointAwayFromNavWall(NextPathPoint, 16.0f);
 		}
@@ -1393,22 +1376,22 @@ dtStatus FindFlightPathToPoint(const nav_profile &NavProfile, Vector FromLocatio
 
 		bot_path_node NextPathNode;
 
-		if (CurrFlags == SAMPLE_POLYFLAGS_LIFT)
+		if (CurrFlags == NAV_FLAG_PLATFORM)
 		{
 			NextPathNode.flag = CurrFlags;
 		}
 		else
 		{
-			NextPathNode.flag = SAMPLE_POLYFLAGS_WALK;
+			NextPathNode.flag = NAV_FLAG_WALK;
 		}
 		
 		NextPathNode.area = CurrArea;
 		NextPathNode.poly = StraightPolyPath[nVert];
 
 
-		if (CurrFlags == SAMPLE_POLYFLAGS_JUMP || CurrFlags == SAMPLE_POLYFLAGS_FLY)
+		if (CurrFlags == NAV_FLAG_JUMP)
 		{
-			float MaxHeight = (CurrFlags == SAMPLE_POLYFLAGS_JUMP) ? fmaxf(PrevPoint.z, NextPathPoint.z) + 60.0f : UTIL_FindZHeightForWallClimb(PrevPoint, NextPathPoint, head_hull);
+			float MaxHeight = (CurrFlags == NAV_FLAG_JUMP) ? fmaxf(PrevPoint.z, NextPathPoint.z) + 60.0f : UTIL_FindZHeightForWallClimb(PrevPoint, NextPathPoint, head_hull);
 
 			NextPathNode.requiredZ = MaxHeight;
 			NextPathNode.Location = PrevPoint;
@@ -1428,7 +1411,7 @@ dtStatus FindFlightPathToPoint(const nav_profile &NavProfile, Vector FromLocatio
 
 			path.push_back(NextPathNode);
 		}
-		else if (CurrFlags == SAMPLE_POLYFLAGS_LADDER || CurrFlags == SAMPLE_POLYFLAGS_FALL)
+		else if (CurrFlags == NAV_FLAG_LADDER || CurrFlags == NAV_FLAG_FALL)
 		{
 			float MaxHeight = fmaxf(PrevPoint.z, NextPathPoint.z);
 
@@ -1456,8 +1439,8 @@ dtStatus FindFlightPathToPoint(const nav_profile &NavProfile, Vector FromLocatio
 	bot_path_node FinalInitialPathNode;
 	FinalInitialPathNode.FromLocation = (path.size() > 0) ? path.back().Location : FromLocation;
 	FinalInitialPathNode.Location = ToLocation;
-	FinalInitialPathNode.area = SAMPLE_POLYAREA_GROUND;
-	FinalInitialPathNode.flag = SAMPLE_POLYFLAGS_LADDER;
+	FinalInitialPathNode.area = NAV_AREA_WALK;
+	FinalInitialPathNode.flag = NAV_FLAG_LADDER;
 	FinalInitialPathNode.poly = 0;
 	FinalInitialPathNode.requiredZ = ToLocation.z;
 
@@ -1621,7 +1604,7 @@ dtStatus FindPathClosestToPoint(const nav_profile& NavProfile, const Vector From
 		m_navMesh->getPolyArea(StraightPolyPath[nVert], &ThisArea);
 		m_navMesh->getPolyFlags(StraightPolyPath[nVert], &ThisFlags);
 
-		if (ThisArea == SAMPLE_POLYAREA_GROUND || ThisArea == SAMPLE_POLYAREA_CROUCH)
+		if (ThisArea == NAV_AREA_WALK || ThisArea == NAV_AREA_CROUCH)
 		{
 			NextPathNode.Location = UTIL_AdjustPointAwayFromNavWall(NextPathNode.Location, 16.0f);
 		}
@@ -1636,7 +1619,7 @@ dtStatus FindPathClosestToPoint(const nav_profile& NavProfile, const Vector From
 		{
 			NextPathNode.Location = hit.vecEndPos;
 
-			if (CurrFlags != SAMPLE_POLYFLAGS_JUMP)
+			if (CurrFlags != NAV_FLAG_JUMP)
 			{
 				NextPathNode.Location.z += 20.0f;
 			}
@@ -1644,17 +1627,13 @@ dtStatus FindPathClosestToPoint(const nav_profile& NavProfile, const Vector From
 
 		NextPathNode.requiredZ = NextPathNode.Location.z;
 
-		if (CurrFlags == SAMPLE_POLYFLAGS_LADDER)
+		if (CurrFlags == NAV_FLAG_LADDER)
 		{
 			float NewRequiredZ = UTIL_FindZHeightForWallClimb(NextPathNode.FromLocation, NextPathNode.Location, head_hull);
 			//NextPathNode.requiredZ = fmaxf(NewRequiredZ, NextPathNode.Location.z);
 			NextPathNode.requiredZ = NewRequiredZ;
 
-			if (CurrFlags == SAMPLE_POLYFLAGS_LADDER)
-			{
-				NextPathNode.requiredZ += 5.0f;
-			}
-
+			NextPathNode.requiredZ += 5.0f;
 		}
 		else
 		{
@@ -1702,7 +1681,7 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 	{
 		bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
-		if (CurrentPathNode.flag == SAMPLE_POLYFLAGS_WALK)
+		if (CurrentPathNode.flag == NAV_FLAG_WALK)
 		{
 			bool bFromReachable = UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, CurrentPathNode.Location);
 			bool bToReachable = UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, CurrentPathNode.FromLocation);
@@ -1846,8 +1825,8 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 		bot_path_node StartPathNode;
 		StartPathNode.FromLocation = LiftStart;
 		StartPathNode.Location = LiftEnd;
-		StartPathNode.flag = SAMPLE_POLYFLAGS_LIFT;
-		StartPathNode.area = SAMPLE_POLYAREA_LIFT;
+		StartPathNode.flag = NAV_FLAG_PLATFORM;
+		StartPathNode.area = NAV_FLAG_PLATFORM;
 
 		path.push_back(StartPathNode);
 
@@ -1871,12 +1850,12 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 
 		NextPathNode.Location = AdjustPointForPathfinding(NextPathNode.Location);
 
-		if (CurrFlags != SAMPLE_POLYFLAGS_JUMP || NextPathNode.FromLocation.z > NextPathNode.Location.z)
+		if (CurrFlags != NAV_FLAG_JUMP || NextPathNode.FromLocation.z > NextPathNode.Location.z)
 		{
-			NextPathNode.Location.z += GetPlayerOriginOffsetFromFloor(pBot->Edict, (CurrArea == SAMPLE_POLYAREA_CROUCH)).z;
+			NextPathNode.Location.z += GetPlayerOriginOffsetFromFloor(pBot->Edict, (CurrArea == NAV_FLAG_CROUCH)).z;
 		}
 
-		if (CurrFlags == SAMPLE_POLYFLAGS_LIFT)
+		if (CurrFlags == NAV_FLAG_PLATFORM)
 		{
 			DynamicMapObject* PlatformRef = UTIL_GetClosestLiftToPoints(NextPathNode.FromLocation, NextPathNode.Location);
 
@@ -1894,14 +1873,14 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 		// This what allows bots to climb over railings without having to explicitly place nav points on the railing itself
 		NextPathNode.requiredZ = NextPathNode.Location.z;
 
-		if (CurrFlags == SAMPLE_POLYFLAGS_LADDER)
+		if (CurrFlags == NAV_FLAG_LADDER)
 		{
 			int HullNum = GetPlayerHullIndex(pBot->Edict, false);
 			Vector FromLocation = (path.size() > 0) ? path.back().Location : pBot->CurrentFloorPosition;
 			float NewRequiredZ = UTIL_FindZHeightForWallClimb(FromLocation, NextPathNode.Location, head_hull);
 			NextPathNode.requiredZ = fmaxf(NewRequiredZ, NextPathNode.Location.z);
 
-			if (CurrFlags == SAMPLE_POLYFLAGS_LADDER)
+			if (CurrFlags == NAV_FLAG_LADDER)
 			{
 				NextPathNode.requiredZ += 5.0f;
 			}
@@ -1936,7 +1915,7 @@ Vector NAV_GetNearestPlatformDisembarkPoint(edict_t* Rider, DynamicMapObject* Li
 
 	for (auto it = BaseMapConnections.begin(); it != BaseMapConnections.end(); it++)
 	{
-		if (!(it->ConnectionFlags & SAMPLE_POLYFLAGS_LIFT)) { continue; }
+		if (!(it->ConnectionFlags & NAV_FLAG_PLATFORM)) { continue; }
 
 		if (it->LinkedObject == LiftReference->Edict)
 		{
@@ -2041,7 +2020,7 @@ NavOffMeshConnection* UTIL_GetOffMeshConnectionForLift(DynamicMapObject* LiftRef
 
 	for (auto it = BaseMapConnections.begin(); it != BaseMapConnections.end(); it++)
 	{
-		if (!(it->ConnectionFlags & SAMPLE_POLYFLAGS_LIFT)) { continue; }
+		if (!(it->ConnectionFlags & NAV_FLAG_PLATFORM)) { continue; }
 
 		if (it->LinkedObject == LiftRef->Edict)
 		{
@@ -2120,36 +2099,32 @@ bool HasBotReachedPathPoint(const AvHAIPlayer* pBot)
 
 	bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
-	SamplePolyFlags CurrentNavFlag = (SamplePolyFlags)CurrentPathNode.flag;
+	NavMovementFlag CurrentNavFlag = (NavMovementFlag)CurrentPathNode.flag;
 	Vector MoveFrom = CurrentPathNode.FromLocation;
 	Vector MoveTo = CurrentPathNode.Location;
 	float RequiredClimbHeight = CurrentPathNode.requiredZ;
 
 	Vector NextMoveLocation = ZERO_VECTOR;
-	SamplePolyFlags NextMoveFlag = SAMPLE_POLYFLAGS_DISABLED;
+	NavMovementFlag NextMoveFlag = NAV_FLAG_DISABLED;
 
 	if ((pBot->BotNavInfo.CurrentPathPoint + 1) < pBot->BotNavInfo.CurrentPath.size())
 	{
 		bot_path_node NextPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1];
 		NextMoveLocation = NextPathNode.Location;
-		NextMoveFlag = (SamplePolyFlags)NextPathNode.flag;
+		NextMoveFlag = (NavMovementFlag)NextPathNode.flag;
 	}
 
 	switch (CurrentNavFlag)
 	{		
-		case SAMPLE_POLYFLAGS_WALK:
+		case NAV_FLAG_WALK:
 			return HasBotCompletedWalkMove(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
-		case SAMPLE_POLYFLAGS_DOOR:
-			return HasBotCompletedObstacleMove(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
-		case SAMPLE_POLYFLAGS_LADDER:
+		case NAV_FLAG_LADDER:
 			return HasBotCompletedLadderMove(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
-		case SAMPLE_POLYFLAGS_FALL:
+		case NAV_FLAG_FALL:
 			return HasBotCompletedFallMove(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
-		case SAMPLE_POLYFLAGS_JUMP:
-		case SAMPLE_POLYFLAGS_DUCKJUMP:
-		case SAMPLE_POLYFLAGS_BLOCKED:
+		case NAV_FLAG_JUMP:
 			return HasBotCompletedJumpMove(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
-		case SAMPLE_POLYFLAGS_LIFT:
+		case NAV_FLAG_PLATFORM:
 			return HasBotCompletedLiftMove(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
 		default:
 			return HasBotCompletedWalkMove(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
@@ -2158,11 +2133,11 @@ bool HasBotReachedPathPoint(const AvHAIPlayer* pBot)
 	return HasBotCompletedWalkMove(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
 }
 
-bool HasBotCompletedWalkMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool HasBotCompletedWalkMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
 	bool bNextPointReachable = false;
 
-	if (NextMoveFlag != SAMPLE_POLYFLAGS_DISABLED)
+	if (NextMoveFlag != NAV_FLAG_DISABLED)
 	{
 		bNextPointReachable = UTIL_PointIsDirectlyReachable(pBot->CollisionHullBottomLocation, NextMoveDestination);
 	}
@@ -2170,21 +2145,21 @@ bool HasBotCompletedWalkMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector M
 	return vPointOverlaps3D(MoveEnd, pBot->Edict->v.absmin, pBot->Edict->v.absmax) || (bNextPointReachable && vDist2DSq(pBot->Edict->v.origin, MoveEnd) < sqrf(GetPlayerRadius(pBot->Edict) * 2.0f));
 }
 
-bool HasBotCompletedObstacleMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool HasBotCompletedObstacleMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
 	return vPointOverlaps3D(MoveEnd, pBot->Edict->v.absmin, pBot->Edict->v.absmax);
 }
 
-bool HasBotCompletedLadderMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool HasBotCompletedLadderMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
 	if (IsPlayerOnLadder(pBot->Edict)) { return false; }
 
 	return vPointOverlaps3D(MoveEnd, pBot->Edict->v.absmin, pBot->Edict->v.absmax);
 }
 
-bool HasBotCompletedFallMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool HasBotCompletedFallMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
-	if (NextMoveFlag != SAMPLE_POLYFLAGS_DISABLED)
+	if (NextMoveFlag != NAV_FLAG_DISABLED)
 	{
 		Vector ThisMoveDir = UTIL_GetVectorNormal2D(MoveEnd - MoveStart);
 		Vector NextMoveDir = UTIL_GetVectorNormal2D(NextMoveDestination - MoveEnd);
@@ -2202,13 +2177,13 @@ bool HasBotCompletedFallMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector M
 	return vPointOverlaps3D(MoveEnd, pBot->Edict->v.absmin, pBot->Edict->v.absmax);
 }
 
-bool HasBotCompletedJumpMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool HasBotCompletedJumpMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
 	Vector PositionInMove = vClosestPointOnLine2D(MoveStart, MoveEnd, pBot->Edict->v.origin);
 
 	if (!vEquals2D(PositionInMove, MoveEnd, 2.0f)) { return false; }
 
-	if (NextMoveFlag != SAMPLE_POLYFLAGS_DISABLED)
+	if (NextMoveFlag != NAV_FLAG_DISABLED)
 	{
 		Vector ThisMoveDir = UTIL_GetVectorNormal2D(MoveEnd - MoveStart);
 		Vector NextMoveDir = UTIL_GetVectorNormal2D(NextMoveDestination - MoveEnd);
@@ -2232,7 +2207,7 @@ bool HasBotCompletedJumpMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector M
 	return vPointOverlaps3D(MoveEnd, pBot->Edict->v.absmin, pBot->Edict->v.absmax);
 }
 
-bool HasBotCompletedLiftMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool HasBotCompletedLiftMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
 	return vPointOverlaps3D(MoveEnd, pBot->Edict->v.absmin, pBot->Edict->v.absmax);
 }
@@ -2326,7 +2301,7 @@ edict_t* UTIL_GetBreakableBlockingPathPoint(const Vector FromLocation, const Vec
 
 	TraceResult doorHit;
 
-	if (MovementFlag == SAMPLE_POLYFLAGS_LADDER)
+	if (MovementFlag == NAV_FLAG_LADDER)
 	{
 		Vector TargetLoc = (ToLocation.z > FromLocation.z) ? Vector(FromLoc.x, FromLoc.y, ToLoc.z) : Vector(ToLoc.x, ToLoc.y, FromLoc.z);
 
@@ -2373,7 +2348,7 @@ edict_t* UTIL_GetBreakableBlockingPathPoint(const Vector FromLocation, const Vec
 		}
 
 	}
-	else if (MovementFlag == SAMPLE_POLYFLAGS_FALL)
+	else if (MovementFlag == NAV_FLAG_FALL)
 	{
 		Vector TargetLoc = Vector(ToLoc.x, ToLoc.y, FromLoc.z);
 
@@ -2455,7 +2430,7 @@ DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, con
 
 	TraceResult doorHit;
 
-	if (MovementFlag == SAMPLE_POLYFLAGS_LADDER)
+	if (MovementFlag == NAV_FLAG_LADDER)
 	{
 		Vector TargetLoc = (ToLocation.z > FromLocation.z) ? Vector(FromLoc.x, FromLoc.y, ToLoc.z) : Vector(ToLoc.x, ToLoc.y, FromLoc.z);
 
@@ -2500,7 +2475,7 @@ DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, con
 		}
 
 	}
-	else if (MovementFlag == SAMPLE_POLYFLAGS_FALL)
+	else if (MovementFlag == NAV_FLAG_FALL)
 	{
 		Vector TargetLoc = Vector(ToLoc.x, ToLoc.y, FromLoc.z);
 
@@ -2735,13 +2710,13 @@ void NewMove(AvHAIPlayer* pBot)
 
 	bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
-	if (!(CurrentPathNode.flag & SAMPLE_POLYFLAGS_LIFT))
+	if (!(CurrentPathNode.flag & NAV_FLAG_PLATFORM))
 	{
 		for (int i = pBot->BotNavInfo.CurrentPathPoint + 1; i < pBot->BotNavInfo.CurrentPath.size(); i++)
 		{
 			bot_path_node FutureNode = pBot->BotNavInfo.CurrentPath[i];
 
-			if (FutureNode.flag & SAMPLE_POLYFLAGS_LIFT)
+			if (FutureNode.flag & NAV_FLAG_PLATFORM)
 			{
 				DynamicMapObject* PlatformObject = UTIL_GetDynamicObjectByEdict(FutureNode.Platform);
 
@@ -2771,11 +2746,11 @@ void NewMove(AvHAIPlayer* pBot)
 	Vector MoveFrom = CurrentPathNode.FromLocation;
 	Vector MoveTo = CurrentPathNode.Location;
 
-	SamplePolyAreas CurrentNavArea = (SamplePolyAreas)CurrentPathNode.area;
-	SamplePolyFlags CurrentNavFlags = (SamplePolyFlags)CurrentPathNode.flag;
+	NavArea CurrentNavArea = (NavArea)CurrentPathNode.area;
+	NavMovementFlag CurrentNavFlags = (NavMovementFlag)CurrentPathNode.flag;
 
 	// Used to anticipate if we're about to enter a crouch area so we can start crouching early
-	unsigned char NextArea = SAMPLE_POLYAREA_GROUND;
+	unsigned char NextArea = NAV_AREA_WALK;
 
 	if (pBot->BotNavInfo.CurrentPathPoint < pBot->BotNavInfo.CurrentPath.size() - 1)
 	{
@@ -2786,7 +2761,7 @@ void NewMove(AvHAIPlayer* pBot)
 		bool bIsNearNextPoint = (vDist2DSq(pBot->Edict->v.origin, NextPathNode.FromLocation) <= sqrf(50.0f));
 
 		// Start crouching early if we're about to enter a crouch path point
-		if (CanPlayerCrouch(pBot->Edict) && (CurrentNavArea == SAMPLE_POLYAREA_CROUCH || (NextArea == SAMPLE_POLYAREA_CROUCH && bIsNearNextPoint)))
+		if (CanPlayerCrouch(pBot->Edict) && (CurrentNavArea == NAV_AREA_CROUCH || (NextArea == NAV_AREA_CROUCH && bIsNearNextPoint)))
 		{
 			pBot->Button |= IN_DUCK;
 		}
@@ -2794,24 +2769,20 @@ void NewMove(AvHAIPlayer* pBot)
 
 	switch (CurrentNavFlags)
 	{
-	case SAMPLE_POLYFLAGS_WALK:
+	case NAV_FLAG_WALK:
 		GroundMove(pBot, MoveFrom, MoveTo);
 		break;
-	case SAMPLE_POLYFLAGS_FALL:
+	case NAV_FLAG_FALL:
 		FallMove(pBot, MoveFrom, MoveTo);
 		break;
-	case SAMPLE_POLYFLAGS_JUMP:
-	case SAMPLE_POLYFLAGS_DUCKJUMP:
+	case NAV_FLAG_JUMP:
 		JumpMove(pBot, MoveFrom, MoveTo);
 		break;
-	case SAMPLE_POLYFLAGS_BLOCKED:
-		BlockedMove(pBot, MoveFrom, MoveTo);
-		break;
-	case SAMPLE_POLYFLAGS_LADDER:
+	case NAV_FLAG_LADDER:
 		LadderMove(pBot, MoveFrom, MoveTo, CurrentPathNode.requiredZ, NextArea);
 		break;
-	case SAMPLE_POLYFLAGS_LIFT:
-		LiftMove(pBot, MoveFrom, MoveTo);
+	case NAV_FLAG_PLATFORM:
+		PlatformMove(pBot, MoveFrom, MoveTo);
 		break;
 	default:
 		GroundMove(pBot, MoveFrom, MoveTo);
@@ -2837,7 +2808,7 @@ void NewMove(AvHAIPlayer* pBot)
 	// While moving, check to make sure we're not obstructed by a func_breakable, e.g. vent or window.
 	CheckAndHandleBreakableObstruction(pBot, MoveFrom, MoveTo, CurrentNavFlags);
 
-	if (CurrentNavFlags != SAMPLE_POLYFLAGS_LIFT)
+	if (CurrentNavFlags != NAV_FLAG_PLATFORM)
 	{
 		CheckAndHandleDoorObstruction(pBot);
 	}
@@ -3295,7 +3266,7 @@ void NAV_ForceActivateTrigger(AvHAIPlayer* pBot, DynamicMapObject* TriggerRef)
 	}
 }
 
-NavOffMeshConnection* NAV_GetNearestOffMeshConnectionToPoint(const Vector SearchPoint, SamplePolyFlags SearchFlags)
+NavOffMeshConnection* NAV_GetNearestOffMeshConnectionToPoint(const Vector SearchPoint, NavMovementFlag SearchFlags)
 {
 	NavOffMeshConnection* Result = nullptr;
 
@@ -3532,7 +3503,7 @@ bool NAV_CanBoardPlatform(AvHAIPlayer* pBot, DynamicMapObject* Platform, Vector 
 	return (!vIsZero(ProjectedLocation) && UTIL_PointIsDirectlyReachable(BoardingPoint, ProjectedLocation) && vDist2DSq(BoardingPoint, ProjectedLocation) <= sqrf(Dist + 16.0f));
 }
 
-void LiftMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint)
+void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint)
 {
 	DynamicMapObject* Platform = nullptr;
 	
@@ -3668,36 +3639,32 @@ bool IsBotOffPath(const AvHAIPlayer* pBot)
 
 	bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
-	SamplePolyFlags CurrentNavFlag = (SamplePolyFlags)CurrentPathNode.flag;
+	NavMovementFlag CurrentNavFlag = (NavMovementFlag)CurrentPathNode.flag;
 	Vector MoveFrom = CurrentPathNode.FromLocation;
 	Vector MoveTo = CurrentPathNode.Location;
 
 	Vector NextMoveLocation = ZERO_VECTOR;
-	SamplePolyFlags NextMoveFlag = SAMPLE_POLYFLAGS_DISABLED;
+	NavMovementFlag NextMoveFlag = NAV_FLAG_DISABLED;
 
 	if (pBot->BotNavInfo.CurrentPathPoint < pBot->BotNavInfo.CurrentPath.size() - 1)
 	{
 		bot_path_node NextPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
 		NextMoveLocation = NextPathNode.Location;
-		NextMoveFlag = (SamplePolyFlags)NextPathNode.flag;
+		NextMoveFlag = (NavMovementFlag)NextPathNode.flag;
 	}
 
 	switch (CurrentNavFlag)
 	{
-	case SAMPLE_POLYFLAGS_WALK:
+	case NAV_FLAG_WALK:
 		return IsBotOffWalkNode(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
-	case SAMPLE_POLYFLAGS_DOOR:
-		return IsBotOffObstacleNode(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
-	case SAMPLE_POLYFLAGS_LADDER:
+	case NAV_FLAG_LADDER:
 		return IsBotOffLadderNode(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
-	case SAMPLE_POLYFLAGS_FALL:
+	case NAV_FLAG_FALL:
 		return IsBotOffFallNode(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
-	case SAMPLE_POLYFLAGS_JUMP:
-	case SAMPLE_POLYFLAGS_DUCKJUMP:
-	case SAMPLE_POLYFLAGS_BLOCKED:
+	case NAV_FLAG_JUMP:
 		return IsBotOffJumpNode(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
-	case SAMPLE_POLYFLAGS_LIFT:
+	case NAV_FLAG_PLATFORM:
 		return IsBotOffLiftNode(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
 	default:
 		return IsBotOffWalkNode(pBot, MoveFrom, MoveTo, NextMoveLocation, NextMoveFlag);
@@ -3707,7 +3674,7 @@ bool IsBotOffPath(const AvHAIPlayer* pBot)
 
 }
 
-bool IsBotOffLadderNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool IsBotOffLadderNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
 	if (!IsPlayerOnLadder(pBot->Edict))
 	{
@@ -3720,7 +3687,7 @@ bool IsBotOffLadderNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEn
 	return false;
 }
 
-bool IsBotOffWalkNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool IsBotOffWalkNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
 	if (!pBot->BotNavInfo.IsOnGround) { return false; }
 
@@ -3735,7 +3702,7 @@ bool IsBotOffWalkNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd,
 
 }
 
-bool IsBotOffFallNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool IsBotOffFallNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
 	if (!pBot->BotNavInfo.IsOnGround) { return false; }
 
@@ -3746,7 +3713,7 @@ bool IsBotOffFallNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd,
 	return false;
 }
 
-bool IsBotOffJumpNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool IsBotOffJumpNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
 	if (!pBot->BotNavInfo.IsOnGround) { return false; }
 
@@ -3760,12 +3727,12 @@ bool IsBotOffJumpNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd,
 	return vDist2DSq(pBot->Edict->v.origin, ClosestPointOnLine) > sqrf(GetPlayerRadius(pBot->Edict) * 2.0f);
 }
 
-bool IsBotOffLiftNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool IsBotOffLiftNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
 	return false;
 }
 
-bool IsBotOffObstacleNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, SamplePolyFlags NextMoveFlag)
+bool IsBotOffObstacleNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag)
 {
 	return IsBotOffJumpNode(pBot, MoveStart, MoveEnd, NextMoveDestination, NextMoveFlag);
 }
@@ -4473,7 +4440,7 @@ unsigned char UTIL_GetNavAreaAtLocation(const nav_profile &NavProfile, const Vec
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
 	const dtQueryFilter* m_navFilter = &NavProfile.Filters;
 
-	if (!m_navQuery) { return (unsigned char)SAMPLE_POLYAREA_BLOCKED; }
+	if (!m_navQuery) { return (unsigned char)NAV_AREA_UNWALKABLE; }
 
 	Vector TraceHit = UTIL_GetTraceHitLocation(Location + Vector(0.0f, 0.0f, 10.0f), Location - Vector(0.0f, 0.0f, 500.0f));
 
@@ -4494,7 +4461,7 @@ unsigned char UTIL_GetNavAreaAtLocation(const nav_profile &NavProfile, const Vec
 	}
 	else
 	{
-		return (unsigned char)SAMPLE_POLYAREA_BLOCKED;
+		return (unsigned char)NAV_AREA_UNWALKABLE;
 	}
 }
 
@@ -4527,24 +4494,6 @@ unsigned char UTIL_GetNavAreaAtLocation(const Vector Location)
 	{
 		return 0;
 	}
-}
-
-const char* UTIL_NavmeshAreaToChar(const unsigned char Area)
-{
-	switch (Area)
-	{
-	case SAMPLE_POLYAREA_BLOCKED:
-		return "Blocked";
-	case SAMPLE_POLYAREA_CROUCH:
-		return "Crouch";
-	case SAMPLE_POLYAREA_GROUND:
-		return "Ground";
-	default:
-		return "INVALID";
-
-	}
-
-	return "INVALID";
 }
 
 void UTIL_UpdateBotMovementStatus(AvHAIPlayer* pBot)
@@ -4595,7 +4544,7 @@ bool AbortCurrentMove(AvHAIPlayer* pBot, const Vector NewDestination)
 
 	bool bReverseCourse = (vDist3DSq(DestinationPointOnLine, MoveFrom) < vDist3DSq(DestinationPointOnLine, MoveTo));
 
-	if (flag == SAMPLE_POLYFLAGS_LIFT)
+	if (flag == NAV_FLAG_PLATFORM)
 	{
 		if (pBot->BotNavInfo.MovementTask.TaskType != MOVE_TASK_NONE && !vEquals(NewDestination, pBot->BotNavInfo.MovementTask.TaskLocation))
 		{
@@ -4615,16 +4564,16 @@ bool AbortCurrentMove(AvHAIPlayer* pBot, const Vector NewDestination)
 		if (bReverseCourse)
 		{
 			if (UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, MoveFrom)) { return true; }
-			LiftMove(pBot, MoveTo, MoveFrom);
+			PlatformMove(pBot, MoveTo, MoveFrom);
 		}
 		else
 		{
 			if (UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, MoveTo)) { return true; }
-			LiftMove(pBot, MoveFrom, MoveTo);
+			PlatformMove(pBot, MoveFrom, MoveTo);
 		}
 	}
 
-	if (flag == SAMPLE_POLYFLAGS_WALK || flag == SAMPLE_POLYFLAGS_DOOR)
+	if (flag == NAV_FLAG_WALK)
 	{
 		if (UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, MoveFrom) || UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, MoveTo))
 		{
@@ -4641,12 +4590,12 @@ bool AbortCurrentMove(AvHAIPlayer* pBot, const Vector NewDestination)
 		}
 	}
 
-	if (flag == SAMPLE_POLYFLAGS_LADDER)
+	if (flag == NAV_FLAG_LADDER)
 	{
 		if (bReverseCourse)
 		{
 
-			LadderMove(pBot, MoveTo, MoveFrom, CurrentPathNode.requiredZ, (unsigned char)SAMPLE_POLYAREA_CROUCH);
+			LadderMove(pBot, MoveTo, MoveFrom, CurrentPathNode.requiredZ, (unsigned char)NAV_AREA_CROUCH);
 
 			// We're going DOWN the ladder
 			if (MoveTo.z > MoveFrom.z)
@@ -4660,7 +4609,7 @@ bool AbortCurrentMove(AvHAIPlayer* pBot, const Vector NewDestination)
 		else
 		{
 
-			LadderMove(pBot, MoveFrom, MoveTo, CurrentPathNode.requiredZ, (unsigned char)SAMPLE_POLYAREA_CROUCH);
+			LadderMove(pBot, MoveFrom, MoveTo, CurrentPathNode.requiredZ, (unsigned char)NAV_AREA_CROUCH);
 
 			// We're going DOWN the ladder
 			if (MoveFrom.z > MoveTo.z)
@@ -4673,7 +4622,7 @@ bool AbortCurrentMove(AvHAIPlayer* pBot, const Vector NewDestination)
 		}
 	}
 
-	if (flag == SAMPLE_POLYFLAGS_JUMP || flag == SAMPLE_POLYFLAGS_DUCKJUMP || flag == SAMPLE_POLYFLAGS_BLOCKED)
+	if (flag == NAV_FLAG_JUMP)
 	{
 		if (bReverseCourse)
 		{
@@ -4685,7 +4634,7 @@ bool AbortCurrentMove(AvHAIPlayer* pBot, const Vector NewDestination)
 		}
 	}
 
-	if (flag == SAMPLE_POLYFLAGS_FALL)
+	if (flag == NAV_FLAG_FALL)
 	{
 		FallMove(pBot, MoveFrom, MoveTo);
 	}
@@ -4707,7 +4656,7 @@ void UpdateBotStuck(AvHAIPlayer* pBot)
 
 		bool bIsFollowingPath = (pBot->BotNavInfo.CurrentPath.size() > 0 && pBot->BotNavInfo.CurrentPathPoint < pBot->BotNavInfo.CurrentPath.size());
 
-		bool bDist3D = pBot->BotNavInfo.NavProfile.bFlyingProfile || (bIsFollowingPath && (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].flag == SAMPLE_POLYFLAGS_LADDER));
+		bool bDist3D = pBot->BotNavInfo.NavProfile.bFlyingProfile || (bIsFollowingPath && (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].flag == NAV_FLAG_LADDER));
 
 		float DistFromLastPoint = (bDist3D) ? vDist3DSq(pBot->Edict->v.origin, pBot->BotNavInfo.StuckInfo.LastBotPosition) : vDist2DSq(pBot->Edict->v.origin, pBot->BotNavInfo.StuckInfo.LastBotPosition);
 
@@ -4836,7 +4785,7 @@ bool NAV_MergeAndUpdatePath(AvHAIPlayer* pBot, vector<bot_path_node>& NewPath)
 	// We skip ahead in the path until we reach the first non-walk node in our CURRENT path
 	for (OldPathEnd = OldPathStart; OldPathEnd != pBot->BotNavInfo.CurrentPath.end(); OldPathEnd++)
 	{
-		if (OldPathEnd->flag != SAMPLE_POLYFLAGS_WALK)
+		if (OldPathEnd->flag != NAV_FLAG_WALK)
 		{
 			break;
 		}
@@ -4851,7 +4800,7 @@ bool NAV_MergeAndUpdatePath(AvHAIPlayer* pBot, vector<bot_path_node>& NewPath)
 	// We have reached the next non-walk node in our CURRENT path, now we find the next non-walk path in a prospective NEW path
 	for (NewPathStart = NewPath.begin(); NewPathStart != NewPath.end(); NewPathStart++)
 	{
-		if (NewPathStart->flag != SAMPLE_POLYFLAGS_WALK)
+		if (NewPathStart->flag != NAV_FLAG_WALK)
 		{
 			break;
 		}
@@ -5256,7 +5205,7 @@ void SkipAheadInFlightPath(AvHAIPlayer* pBot)
 	}
 
 	// If we are currently in a low area or approaching one, don't try to skip ahead in case it screws us up
-	if (CurrentPathPoint->area == SAMPLE_POLYAREA_CROUCH || (next(CurrentPathPoint) != BotNavInfo->CurrentPath.end() && next(CurrentPathPoint)->area == SAMPLE_POLYAREA_CROUCH)) { return; }
+	if (CurrentPathPoint->area == NAV_AREA_CROUCH || (next(CurrentPathPoint) != BotNavInfo->CurrentPath.end() && next(CurrentPathPoint)->area == NAV_AREA_CROUCH)) { return; }
 
 	for (auto it = prev(BotNavInfo->CurrentPath.end()); it != next(CurrentPathPoint); it--)
 	{
@@ -5315,9 +5264,9 @@ void BotFollowFlightPath(AvHAIPlayer* pBot, bool bAllowSkip)
 		}
 	}
 
-	if (CurrentPathPoint->flag == SAMPLE_POLYFLAGS_LIFT)
+	if (CurrentPathPoint->flag == NAV_FLAG_PLATFORM)
 	{
-		LiftMove(pBot, CurrentPathPoint->FromLocation, CurrentMoveDest);
+		PlatformMove(pBot, CurrentPathPoint->FromLocation, CurrentMoveDest);
 		return;
 	}
 
@@ -5347,7 +5296,7 @@ void BotFollowFlightPath(AvHAIPlayer* pBot, bool bAllowSkip)
 		return;
 	}
 
-	if (CurrentPathPoint->flag == SAMPLE_POLYFLAGS_WALK)
+	if (CurrentPathPoint->flag == NAV_FLAG_WALK)
 	{
 		if (!UTIL_QuickTrace(pBot->Edict, pBot->Edict->v.origin, CurrentPathPoint->FromLocation) && !UTIL_QuickTrace(pBot->Edict, pBot->Edict->v.origin, CurrentPathPoint->Location))
 		{
@@ -5362,12 +5311,6 @@ void BotFollowFlightPath(AvHAIPlayer* pBot, bool bAllowSkip)
 	unsigned char CurrentMoveArea = CurrentPathPoint->area;
 	unsigned char NextMoveArea = (next(CurrentPathPoint) != BotNavInfo->CurrentPath.end()) ? next(CurrentPathPoint)->area : CurrentMoveArea;
 
-	// INSERT YOUR FLIGHT BEHAVIOUR HERE
-
-
-
-
-
 	Vector StartTrace = pBot->Edict->v.origin;
 	Vector EndTrace = StartTrace + (UTIL_GetVectorNormal2D(pBot->Edict->v.angles) * 32.0f);
 
@@ -5379,7 +5322,7 @@ void BotFollowFlightPath(AvHAIPlayer* pBot, bool bAllowSkip)
 		pBot->Edict->v.velocity.z = 150.0f;
 	}
 
-	CheckAndHandleBreakableObstruction(pBot, MoveFrom, CurrentMoveDest, SAMPLE_POLYFLAGS_WALK);
+	CheckAndHandleBreakableObstruction(pBot, MoveFrom, CurrentMoveDest, NAV_FLAG_WALK);
 
 	CheckAndHandleDoorObstruction(pBot);
 
@@ -5419,7 +5362,7 @@ void BotFollowSwimPath(AvHAIPlayer* pBot)
 		{
 			CurrentPathPoint = (BotNavInfo->CurrentPath.begin() + BotNavInfo->CurrentPathPoint);
 
-			if (CurrentPathPoint->flag == SAMPLE_POLYFLAGS_WALK)
+			if (CurrentPathPoint->flag == NAV_FLAG_WALK)
 			{
 				CurrentPathPoint->FromLocation = pBot->Edict->v.origin;
 			}
@@ -5438,9 +5381,9 @@ void BotFollowSwimPath(AvHAIPlayer* pBot)
 		BotMoveLookAt(pBot, CurrentPathPoint->Location);
 		pBot->desiredMovementDir = UTIL_GetVectorNormal2D(CurrentPathPoint->Location - pEdict->v.origin);
 
-		unsigned char NextArea = (next(CurrentPathPoint) != BotNavInfo->CurrentPath.end()) ? next(CurrentPathPoint)->area : SAMPLE_POLYAREA_GROUND;
+		unsigned char NextArea = (next(CurrentPathPoint) != BotNavInfo->CurrentPath.end()) ? next(CurrentPathPoint)->area : NAV_AREA_WALK;
 
-		if (CurrentPathPoint->area == SAMPLE_POLYAREA_CROUCH || (NextArea == SAMPLE_POLYAREA_CROUCH && vDist2DSq(pEdict->v.origin, next(CurrentPathPoint)->FromLocation) < sqrf(50.0f)))
+		if (CurrentPathPoint->area == NAV_AREA_CROUCH || (NextArea == NAV_AREA_CROUCH && vDist2DSq(pEdict->v.origin, next(CurrentPathPoint)->FromLocation) < sqrf(50.0f)))
 		{
 			pBot->Button |= IN_DUCK;
 		}
@@ -5448,7 +5391,7 @@ void BotFollowSwimPath(AvHAIPlayer* pBot)
 		return;
 	}
 
-	if (CurrentPathPoint->flag == SAMPLE_POLYFLAGS_LADDER)
+	if (CurrentPathPoint->flag == NAV_FLAG_LADDER)
 	{
 		if (IsPlayerOnLadder(pBot->Edict))
 		{
@@ -5551,7 +5494,7 @@ void BotFollowPath(AvHAIPlayer* pBot)
 
 	bot_path_node CurrentNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
-	if (IsPlayerStandingOnPlayer(pBot->Edict) && CurrentNode.flag != SAMPLE_POLYFLAGS_LADDER)
+	if (IsPlayerStandingOnPlayer(pBot->Edict) && CurrentNode.flag != NAV_FLAG_LADDER)
 	{
 		if (pBot->Edict->v.groundentity->v.velocity.Length2D() > 10.0f)
 		{
@@ -5725,8 +5668,8 @@ Vector UTIL_ProjectPointToNavmesh(const Vector Location, const int NavmeshIndex)
 	const dtNavMesh* m_navMesh = NavMeshes[NavmeshIndex].navMesh;
 	
 	dtQueryFilter ProjectionFilter;
-	ProjectionFilter.addIncludeFlags(SAMPLE_POLYFLAGS_ALL);
-	ProjectionFilter.addExcludeFlags(SAMPLE_POLYFLAGS_DISABLED);
+	ProjectionFilter.addIncludeFlags(NAV_FLAG_ALL);
+	ProjectionFilter.addExcludeFlags(NAV_FLAG_DISABLED);
 
 	if (!m_navQuery) { return ZERO_VECTOR; }
 
@@ -5777,8 +5720,8 @@ Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, c
 	const dtNavMesh* m_navMesh = NavMeshes[NavmeshIndex].navMesh;
 
 	dtQueryFilter ProjectionFilter;
-	ProjectionFilter.addIncludeFlags(SAMPLE_POLYFLAGS_ALL);
-	ProjectionFilter.addExcludeFlags(SAMPLE_POLYFLAGS_DISABLED);
+	ProjectionFilter.addIncludeFlags(NAV_FLAG_ALL);
+	ProjectionFilter.addExcludeFlags(NAV_FLAG_DISABLED);
 
 	if (!m_navQuery) { return ZERO_VECTOR; }
 
@@ -6279,7 +6222,7 @@ void BotMovementInputs(AvHAIPlayer* pBot)
 		pBot->Button |= IN_MOVELEFT;
 	}
 
-	if (pBot->BotNavInfo.CurrentPath.size() == 0 || pBot->BotNavInfo.CurrentPathPoint >= pBot->BotNavInfo.CurrentPath.size() || pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].flag != SAMPLE_POLYFLAGS_LADDER)
+	if (pBot->BotNavInfo.CurrentPath.size() == 0 || pBot->BotNavInfo.CurrentPathPoint >= pBot->BotNavInfo.CurrentPath.size() || pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].flag != NAV_FLAG_LADDER)
 	{
 		if (IsPlayerOnLadder(pBot->Edict))
 		{
@@ -6968,8 +6911,8 @@ dtStatus DEBUG_TestFindPath(const nav_profile& NavProfile, const Vector FromLoca
 		NextPathNode.Location.x = StraightPath[nIndex++];
 		NextPathNode.Location.z = StraightPath[nIndex++];
 		NextPathNode.Location.y = -StraightPath[nIndex++];
-		NextPathNode.area = SAMPLE_POLYAREA_GROUND;
-		NextPathNode.flag = SAMPLE_POLYFLAGS_WALK;
+		NextPathNode.area = NAV_AREA_WALK;
+		NextPathNode.flag = NAV_FLAG_WALK;
 
 		path.push_back(NextPathNode);
 
@@ -7445,7 +7388,7 @@ void NAV_LinkDynamicMapObjectsToOffmeshConnections()
 {
 	for (auto it = BaseMapConnections.begin(); it != BaseMapConnections.end(); it++)
 	{
-		if (it->DefaultConnectionFlags & SAMPLE_POLYFLAGS_LIFT)
+		if (it->DefaultConnectionFlags & NAV_FLAG_PLATFORM)
 		{
 			DynamicMapObject* NearestPlatform = UTIL_GetClosestLiftToPoints(it->FromLocation, it->ToLocation);
 
@@ -8268,7 +8211,7 @@ DynamicMapObject* NAV_GetBestTriggerForObject(DynamicMapObject* ObjectToActivate
 
 			for (auto pathIt = CheckPath.begin(); pathIt != CheckPath.end(); pathIt++)
 			{
-				if (pathIt->flag & SAMPLE_POLYFLAGS_LIFT)
+				if (pathIt->flag & NAV_FLAG_PLATFORM)
 				{
 					if (UTIL_GetClosestLiftToPoints(pathIt->FromLocation, pathIt->Location) == ObjectToActivate) 
 					{

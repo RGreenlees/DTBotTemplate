@@ -3,10 +3,12 @@
 #ifndef NAV_CONSTANTS_H
 #define NAV_CONSTANTS_H
 
+#include <vector>
+
 // Possible movement types. Defines the actions the bot needs to take to traverse this node
 enum NavMovementFlag
 {
-	NAV_FLAG_DISABLED = 2147483647,		// Disabled
+	NAV_FLAG_DISABLED = 1 << 31,		// Disabled
 	NAV_FLAG_WALK = 1,		// Walk
 	NAV_FLAG_CROUCH = 2,		// Crouch
 	NAV_FLAG_JUMP = 4,		// Jump
@@ -25,6 +27,25 @@ enum NavArea
 	NAV_AREA_OBSTRUCTED = 3,		// Obstructed
 	NAV_AREA_HAZARD = 4,		// Hazard
 };
+
+// Profile indices. Use these when retrieving base agent profile information
+enum NavProfileIndex
+{
+	NAV_PROFILE_PLAYER = 0,		// Base Player
+	NAV_PROFILE_DEFAULT = 1,		// Default profile which has all capabilities except disabled flags, and 1.0 area costs for everything 
+};
+
+// Agent profile definition. Holds all information an agent needs when querying the nav mesh
+typedef struct _NAV_AGENT_PROFILE
+{
+	unsigned int NavMeshIndex = 0;
+	class dtQueryFilter Filters;
+	bool bFlyingProfile = false;
+} NavAgentProfile;
+
+// Declared in DTNavigation.cpp
+// List of base agent profiles
+extern std::vector<NavAgentProfile> BaseAgentProfiles;
 
 // Retrieve appropriate flag for area (See process() in the MeshProcess struct)
 inline NavMovementFlag GetFlagForArea(NavArea Area)
@@ -192,6 +213,40 @@ inline void GetAreaName(NavArea Area, char* outName)
 		sprintf(outName, "Undefined");
 		break;
 	}
+}
+
+// Populate the base nav profiles. Should be called once after loading the navigation data
+inline void PopulateBaseAgentProfiles()
+{
+	BaseAgentProfiles.clear();
+
+	NavAgentProfile NewProfile;
+	NewProfile.NavMeshIndex = 0;
+	NewProfile.Filters.setIncludeFlags(63);
+	NewProfile.Filters.setExcludeFlags(NAV_FLAG_DISABLED);
+	NewProfile.Filters.setAreaCost(0, 0.0);
+	NewProfile.Filters.setAreaCost(1, 1.0);
+	NewProfile.Filters.setAreaCost(2, 2.0);
+	NewProfile.Filters.setAreaCost(3, 4.0);
+	NewProfile.Filters.setAreaCost(4, 10.0);
+	BaseAgentProfiles.push_back(NewProfile);
+
+	NavAgentProfile DefaultProfile;
+	DefaultProfile.NavMeshIndex = 0;
+	DefaultProfile.Filters.setIncludeFlags(-1);
+	DefaultProfile.Filters.setAreaCost(0, 1.0);
+	DefaultProfile.Filters.setAreaCost(1, 1.0);
+	DefaultProfile.Filters.setAreaCost(2, 1.0);
+	DefaultProfile.Filters.setAreaCost(3, 1.0);
+	DefaultProfile.Filters.setAreaCost(4, 1.0);
+	BaseAgentProfiles.push_back(DefaultProfile);
+
+}
+
+// Return the appropriate base nav profile information
+inline const NavAgentProfile GetBaseAgentProfile(const NavProfileIndex Index)
+{
+	return BaseAgentProfiles[Index];
 }
 
 #endif // NAV_CONSTANTS_H

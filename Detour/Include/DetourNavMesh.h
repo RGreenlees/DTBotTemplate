@@ -238,7 +238,7 @@ struct dtOffMeshConnection
 	float pos[6] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
 	/// The radius of the endpoints. [Limit: >= 0]
-	float rad = 0.0f;		
+	float rad = 0.0f;
 
 	/// The polygon reference of the connection within the tile.
 	unsigned short poly = 0;

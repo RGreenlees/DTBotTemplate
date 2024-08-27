@@ -14,6 +14,8 @@
 #include "DetourStatus.h"
 #include "DetourNavMeshQuery.h"
 
+#include "nav_constants.h"
+
 
 static const float commander_action_cooldown = 1.0f;
 static const float min_request_spam_time = 10.0f;
@@ -115,15 +117,6 @@ typedef struct _TEMPORARY_OBSTACLE
 	unsigned int NavMeshesIndices[MAX_NAV_MESHES]; // References to this obstacle on all defined nav meshes for easy removal
 } NavTempObstacle;
 
-// A nav profile combines a nav mesh reference (indexed into NavMeshes) and filters to determine how a bot should find paths
-typedef struct _NAV_PROFILE
-{
-	int NavMeshIndex = -1;
-	dtQueryFilter Filters;
-	bool bFlyingProfile = false;
-	AvHAIReachabilityStatus ReachabilityFlag = AI_REACHABILITY_NONE;
-} nav_profile;
-
 typedef struct _LOAD_NAV_HINT
 {
 	unsigned int id = 0;
@@ -133,9 +126,9 @@ typedef struct _LOAD_NAV_HINT
 
 typedef struct _NAV_HINT
 {
+	unsigned int NavMeshIndex = 0;
 	unsigned int hintType = 0;
 	Vector Position = ZERO_VECTOR;
-	edict_t* OccupyingBuilding = nullptr;
 } NavHint;
 
 // Pending message a bot wants to say. Allows for a delay in sending a message to simulate typing, or prevent too many messages on the same frame
@@ -317,7 +310,7 @@ typedef struct _NAV_STATUS
 
 	float NextForceRecalc = 0.0f; // If set, then the bot will force-recalc its current path
 
-	nav_profile NavProfile;
+	NavAgentProfile NavProfile;
 	bool bNavProfileChanged = false;
 
 	AvHAIPlayerStuckTracker StuckInfo;

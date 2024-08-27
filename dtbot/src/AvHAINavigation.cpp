@@ -39,7 +39,8 @@ vector<DynamicMapObject> DynamicMapObjects;
 vector<NavOffMeshConnection> BaseMapConnections; // Connections that came as part of the nav mesh
 
 nav_mesh NavMeshes[MAX_NAV_MESHES] = { }; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
-nav_profile BaseNavProfiles[MAX_NAV_PROFILES] = { }; // Array of nav profiles
+
+vector<NavAgentProfile> BaseAgentProfiles;
 
 AvHAINavMeshStatus NavmeshStatus = NAVMESH_STATUS_PENDING;
 
@@ -58,60 +59,36 @@ struct NavMeshSetHeader
 	int MeshBuildOffset;
 };
 
-struct TileCacheSetExportHeader
+struct TileCacheSetHeader
 {
-	int magic;
-	int version;
+	int magic = 0;
+	int version = 0;
+	int numTiles = 0;
+	dtNavMeshParams meshParams;
+	dtTileCacheParams cacheParams;
 
-	int numRegularTiles;
-	dtNavMeshParams regularMeshParams;
-	dtTileCacheParams regularCacheParams;
+	int NumOffMeshCons = 0;
+	int OffMeshConsOffset = 0;
 
-	int numOnosTiles;
-	dtNavMeshParams onosMeshParams;
-	dtTileCacheParams onosCacheParams;
+	int NumConvexVols = 0;
+	int ConvexVolsOffset = 0;
 
-	int numBuildingTiles;
-	dtNavMeshParams buildingMeshParams;
-	dtTileCacheParams buildingCacheParams;
-
-	int regularNavOffset;
-	int onosNavOffset;
-	int buildingNavOffset;
-
-	int NumOffMeshCons;
-
-	int OffMeshConsOffset;
+	int NumNavHints = 0;
+	int NavHintsOffset = 0;
 };
 
-struct TileCacheBuildHeader
+struct TileCacheExportHeader
 {
 	int magic;
 	int version;
-	int numRegularTiles;
-	int numOnosTiles;
-	int numBuildingTiles;
 
-	dtNavMeshParams regularMeshParams;
-	dtTileCacheParams regularCacheParams;
+	int numTileCaches;
+	int tileCacheDataOffset = 0;
 
-	dtNavMeshParams onosMeshParams;
-	dtTileCacheParams onosCacheParams;
-
-	dtNavMeshParams buildingMeshParams;
-	dtTileCacheParams buildingCacheParams;
+	int tileCacheOffsets[8];
 
 	int NumSurfTypes;
 	int SurfTypesOffset;
-
-	int NumOffMeshCons;
-	int OffMeshConsOffset;
-
-	int NumConvexVols;
-	int ConvexVolOffset;
-
-	int NumNavHints;
-	int NavHintOffset;
 };
 
 struct TileCacheTileHeader
@@ -233,8 +210,8 @@ struct MeshProcess : public dtTileCacheMeshProcess
 
 void AIDEBUG_DrawTemporaryObstacles(float DrawTime)
 {
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(GetBaseNavProfile(PLAYER_BASE_NAV_PROFILE));
-	const dtTileCache* m_tileCache = UTIL_GetTileCacheForProfile(GetBaseNavProfile(PLAYER_BASE_NAV_PROFILE));
+	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(GetBaseNavProfile(PLAYER_BASE_NavAgentProfile));
+	const dtTileCache* m_tileCache = UTIL_GetTileCacheForProfile(GetBaseNavProfile(PLAYER_BASE_NavAgentProfile));
 
 	if (m_navMesh)
 	{
@@ -388,8 +365,8 @@ bool UTIL_UpdateTileCache()
 Vector UTIL_AdjustPointAwayFromNavWall(const Vector Location, const float MaxDistanceFromWall)
 {
 
-	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(BaseNavProfiles[PLAYER_BASE_NAV_PROFILE]);
-	const dtQueryFilter* m_navFilter = &BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].Filters;
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(BaseAgentProfiles[0]);
+	const dtQueryFilter* m_navFilter = &BaseAgentProfiles[PLAYER_BASE_NavAgentProfile].Filters;
 
 	float Pos[3] = { Location.x, Location.z, -Location.y };
 
@@ -413,7 +390,7 @@ Vector UTIL_AdjustPointAwayFromNavWall(const Vector Location, const float MaxDis
 
 		float AdjustLoc[3] = { AdjustLocation.x, AdjustLocation.z, -AdjustLocation.y };
 
-		if (UTIL_TraceNav(BaseNavProfiles[ALL_NAV_PROFILE], Location, AdjustLocation, 0.1f))
+		if (UTIL_TraceNav(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), Location, AdjustLocation, 0.1f))
 		{
 			return AdjustLocation;
 		}
@@ -450,7 +427,7 @@ Vector UTIL_GetNearestPointOnNavWall(AvHAIPlayer* pBot, const float MaxRadius)
 	return ZERO_VECTOR;
 }
 
-Vector UTIL_GetNearestPointOnNavWall(const nav_profile &NavProfile, const Vector Location, const float MaxRadius)
+Vector UTIL_GetNearestPointOnNavWall(const NavAgentProfile &NavProfile, const Vector Location, const float MaxRadius)
 {
 
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
@@ -627,7 +604,7 @@ void UnloadNavigationData()
 
 	//UTIL_ClearDoorData();
 
-	std::memset(BaseNavProfiles, 0, sizeof(nav_profile));
+	BaseAgentProfiles.clear();
 
 	AIMGR_ClearBotData();
 
@@ -635,21 +612,19 @@ void UnloadNavigationData()
 
 bool LoadNavMesh(const char* mapname)
 {
-	std::memset(NavMeshes, 0, sizeof(NavMeshes));
-	BaseMapConnections.clear();
-	MapNavHints.clear();
+	UnloadNavMeshes();
 
 	char filename[256]; // Full path to BSP file
+	char SuccMsg[256];
 
 	GetFullFilePath(filename, mapname);
 
 	FILE* savedFile = fopen(filename, "rb");
 
 	if (!savedFile) 
-	{ 
-		char ErrMsg[256];
-		sprintf(ErrMsg, "No nav file found for %s in the navmeshes folder\n", mapname);
-		g_engfuncs.pfnServerPrint(ErrMsg);
+	{
+		sprintf(SuccMsg, "No nav file found for %s in the navmeshes folder\n", mapname);
+		g_engfuncs.pfnServerPrint(SuccMsg);
 		g_engfuncs.pfnServerPrint("You will need to create one using the Nav Editor tool in the navmeshes folder, or download one\n");
 		return false; 
 	}
@@ -659,252 +634,194 @@ bool LoadNavMesh(const char* mapname)
 	MeshProcess* m_tmproc = new MeshProcess;
 
 	// Read header.
-	TileCacheBuildHeader header;
-	size_t headerReadReturnCode = fread(&header, sizeof(TileCacheBuildHeader), 1, savedFile);
+	TileCacheExportHeader fileHeader;
+	size_t headerReadReturnCode = fread(&fileHeader, sizeof(TileCacheExportHeader), 1, savedFile);
 	if (headerReadReturnCode != 1)
 	{
 		// Error or early EOF
+		UnloadNavMeshes();
+		sprintf(SuccMsg, "The nav file for %s is corrupted or incompatible\n", mapname);
+		g_engfuncs.pfnServerPrint(SuccMsg);
+		g_engfuncs.pfnServerPrint("You will need to create one using the Nav Editor tool in the navmeshes folder, or download one\n");
 		fclose(savedFile);
-		UnloadNavigationData();
-		char ErrMsg[256];
-		sprintf(ErrMsg, "The nav file found for %s is a different version to the current bot version. Use the Nav Editor to regenerate it\n", mapname);
-		g_engfuncs.pfnServerPrint(ErrMsg);
+		return false;
+	}
+	if (fileHeader.magic != TILECACHESET_MAGIC)
+	{
+		UnloadNavMeshes();
+		sprintf(SuccMsg, "The nav file for %s is using a different file version than expected\n", mapname);
+		g_engfuncs.pfnServerPrint(SuccMsg);
+		g_engfuncs.pfnServerPrint("You will need to create one using the Nav Editor tool in the navmeshes folder, or download one\n");
+		fclose(savedFile);
+		return false;
+	}
+	if (fileHeader.version != TILECACHESET_VERSION)
+	{
+		UnloadNavMeshes();
+		sprintf(SuccMsg, "The nav file for %s is using a different file version than expected\n", mapname);
+		g_engfuncs.pfnServerPrint(SuccMsg);
+		g_engfuncs.pfnServerPrint("You will need to create one using the Nav Editor tool in the navmeshes folder, or download one\n");
+		fclose(savedFile);
 		return false;
 	}
 
-	if (header.magic != TILECACHESET_MAGIC || header.version != TILECACHESET_VERSION)
+	fseek(savedFile, fileHeader.tileCacheDataOffset, SEEK_SET);
+
+	for (int i = 0; i < fileHeader.numTileCaches; i++)
 	{
-		fclose(savedFile);
-		UnloadNavigationData();
-		char ErrMsg[256];
-		sprintf(ErrMsg, "The nav file found for %s is a different version to the current bot version. Use the Nav Editor to regenerate it\n", mapname);
-		g_engfuncs.pfnServerPrint(ErrMsg);
-		return false;
-	}
+		fseek(savedFile, fileHeader.tileCacheOffsets[i], SEEK_SET);
 
-	dtNavMeshParams* NavMeshParams[3] = { &header.regularMeshParams, &header.onosMeshParams, &header.buildingMeshParams };
-	dtTileCacheParams* TileCacheParams[3] = { &header.regularCacheParams, &header.onosCacheParams, &header.buildingCacheParams };
+		dtFreeNavMesh(NavMeshes[i].navMesh);
+		dtFreeTileCache(NavMeshes[i].tileCache);
+		dtFreeNavMeshQuery(NavMeshes[i].navQuery);
 
-	for (int i = 0; i <= BUILDING_NAV_MESH; i++)
-	{
-		NavMeshes[i].navMesh = dtAllocNavMesh();
+		TileCacheSetHeader tcHeader;
 
-		if (!NavMeshes[i].navMesh)
+		size_t headerReadReturnCode = fread(&tcHeader, sizeof(TileCacheSetHeader), 1, savedFile);
+		if (headerReadReturnCode != 1)
 		{
+			// Error or early EOF
+			UnloadNavMeshes();
+			sprintf(SuccMsg, "The nav file for %s is corrupted or incompatible\n", mapname);
+			g_engfuncs.pfnServerPrint(SuccMsg);
+			g_engfuncs.pfnServerPrint("You will need to create one using the Nav Editor tool in the navmeshes folder, or download one\n");
 			fclose(savedFile);
-			UnloadNavigationData();
-			g_engfuncs.pfnServerPrint("Unable to allocate memory for the nav mesh\n");
 			return false;
 		}
 
-		dtStatus status = NavMeshes[i].navMesh->init(NavMeshParams[i]);
-		if (dtStatusFailed(status))
+		NavMeshes[i].navMesh = dtAllocNavMesh();
+		if (!NavMeshes[i].navMesh) 
 		{
+			// Error or early EOF
+			UnloadNavMeshes();
+			sprintf(SuccMsg, "Could not allocate memory for nav data.\n", mapname);
+			g_engfuncs.pfnServerPrint(SuccMsg);
 			fclose(savedFile);
-			UnloadNavigationData();
-			g_engfuncs.pfnServerPrint("The nav file has been corrupted or is out of date. Use the Nav Editor to regenerate it\n");
 			return false;
 		}
 
 		NavMeshes[i].tileCache = dtAllocTileCache();
-		if (!NavMeshes[i].tileCache)
+		if (!NavMeshes[i].tileCache) 
 		{
+			// Error or early EOF
+			UnloadNavMeshes();
+			sprintf(SuccMsg, "Could not allocate memory for nav data.\n", mapname);
+			g_engfuncs.pfnServerPrint(SuccMsg);
 			fclose(savedFile);
-			UnloadNavigationData();
 			return false;
 		}
 
-		status = NavMeshes[i].tileCache->init(TileCacheParams[i], m_talloc, m_tcomp, m_tmproc);
+		NavMeshes[i].navQuery = dtAllocNavMeshQuery();
+		if (!NavMeshes[i].navQuery)
+		{
+			// Error or early EOF
+			UnloadNavMeshes();
+			sprintf(SuccMsg, "Could not allocate memory for nav data.\n", mapname);
+			g_engfuncs.pfnServerPrint(SuccMsg);
+			fclose(savedFile);
+			return false;
+		}
+
+		dtStatus status = NavMeshes[i].navMesh->init(&tcHeader.meshParams);
+		if (dtStatusFailed(status)) 
+		{
+			// Error or early EOF
+			UnloadNavMeshes();
+			sprintf(SuccMsg, "Failed to initialise nav mesh (bad data?)\n", mapname);
+			g_engfuncs.pfnServerPrint(SuccMsg);
+			fclose(savedFile);
+			return false;
+		}
+
+		status = NavMeshes[i].tileCache->init(&tcHeader.cacheParams, m_talloc, m_tcomp, m_tmproc);
 		if (dtStatusFailed(status))
 		{
-			g_engfuncs.pfnServerPrint("The nav file has been corrupted or is out of date. Use the Nav Editor to regenerate it\n");
+			// Error or early EOF
+			UnloadNavMeshes();
+			sprintf(SuccMsg, "Failed to initialise tile cache (bad data?)\n", mapname);
+			g_engfuncs.pfnServerPrint(SuccMsg);
 			fclose(savedFile);
-			UnloadNavigationData();
 			return false;
 		}
-	}
 
-	// Read tiles.
-	for (int i = 0; i < header.numRegularTiles; ++i)
-	{
-		TileCacheTileHeader tileHeader;
-		size_t tileHeaderReadReturnCode = fread(&tileHeader, sizeof(tileHeader), 1, savedFile);
-		if (tileHeaderReadReturnCode != 1)
+		// Read tiles.
+		for (int ii = 0; ii < tcHeader.numTiles; ++ii)
 		{
+			TileCacheTileHeader tileHeader;
+			size_t tileHeaderReadReturnCode = fread(&tileHeader, sizeof(tileHeader), 1, savedFile);
+			if (tileHeaderReadReturnCode != 1) { continue; }
+
+			if (!tileHeader.tileRef || !tileHeader.dataSize)
+				break;
+
+			unsigned char* data = (unsigned char*)dtAlloc(tileHeader.dataSize, DT_ALLOC_PERM);
+			if (!data) break;
+			memset(data, 0, tileHeader.dataSize);
+			size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, savedFile);
+			if (tileDataReadReturnCode != 1)
+			{
+				// Error or early EOF
+				dtFree(data);
+				UnloadNavMeshes();
+				sprintf(SuccMsg, "The nav file for %s is corrupted or incompatible\n", mapname);
+				g_engfuncs.pfnServerPrint(SuccMsg);
+				fclose(savedFile);
+				return false;
+			}
+
+			dtCompressedTileRef tile = 0;
+			dtStatus addTileStatus = NavMeshes[i].tileCache->addTile(data, tileHeader.dataSize, DT_COMPRESSEDTILE_FREE_DATA, &tile);
+			if (dtStatusFailed(addTileStatus))
+			{
+				dtFree(data);
+			}
+
+			if (tile)
+				NavMeshes[i].tileCache->buildNavMeshTile(tile, NavMeshes[i].navMesh);
+		}
+
+		status = NavMeshes[i].navQuery->init(NavMeshes[i].navMesh, 2048);
+
+		if (dtStatusFailed(status))
+		{
+			UnloadNavMeshes();
+			sprintf(SuccMsg, "Failed to initialise nav query (bad data?)\n", mapname);
+			g_engfuncs.pfnServerPrint(SuccMsg);
 			fclose(savedFile);
-			UnloadNavigationData();
-			g_engfuncs.pfnServerPrint("The nav file has been corrupted or is out of date. Use the Nav Editor to regenerate it\n");
-			return false;
-		}
-		if (!tileHeader.tileRef || !tileHeader.dataSize)
-			break;
-
-		unsigned char* data = (unsigned char*)dtAlloc(tileHeader.dataSize, DT_ALLOC_PERM);
-		if (!data) break;
-		std::memset(data, 0, tileHeader.dataSize);
-		size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, savedFile);
-		if (tileDataReadReturnCode != 1)
-		{
-			dtFree(data);
-			fclose(savedFile);
-			UnloadNavigationData();
-			g_engfuncs.pfnServerPrint("The nav file has been corrupted or is out of date. Use the Nav Editor to regenerate it\n");
 			return false;
 		}
 
-		dtCompressedTileRef tile = 0;
-		dtStatus addTileStatus = NavMeshes[REGULAR_NAV_MESH].tileCache->addTile(data, tileHeader.dataSize, DT_COMPRESSEDTILE_FREE_DATA, &tile);
-		if (dtStatusFailed(addTileStatus))
+		fseek(savedFile, tcHeader.OffMeshConsOffset, SEEK_SET);
+
+		for (int ii = 0; ii < tcHeader.NumOffMeshCons; ii++)
 		{
-			dtFree(data);
+			dtOffMeshConnection def;
+			fread(&def, sizeof(dtOffMeshConnection), 1, savedFile);
+
+			Vector Start = Vector(def.pos[0], -def.pos[2], def.pos[1]);
+			Vector End = Vector(def.pos[3], -def.pos[5], def.pos[4]);
+
+			NAV_AddOffMeshConnectionToNavmesh(i, Start, End, def.area, def.flags, def.bBiDir);
 		}
 
-		if (tile)
-			NavMeshes[REGULAR_NAV_MESH].tileCache->buildNavMeshTile(tile, NavMeshes[REGULAR_NAV_MESH].navMesh);
-	}
+		fseek(savedFile, tcHeader.NavHintsOffset, SEEK_SET);
 
-	for (int i = 0; i < header.numOnosTiles; ++i)
-	{
-		TileCacheTileHeader tileHeader;
-		size_t tileHeaderReadReturnCode = fread(&tileHeader, sizeof(tileHeader), 1, savedFile);
-		if (tileHeaderReadReturnCode != 1)
+		for (int ii = 0; ii < tcHeader.NumNavHints; ii++)
 		{
-			fclose(savedFile);
-			UnloadNavigationData();
-			g_engfuncs.pfnServerPrint("The nav file has been corrupted or is out of date. Use the Nav Editor to regenerate it\n");
-			return false;
+			NavHint def;
+
+			fread(&def, sizeof(NavHint), 1, savedFile);
+
+			Vector Position = Vector(def.Position[0], -def.Position[2], def.Position[1]);
+
+			NAV_AddHintToNavmesh(i, Position, def.hintType);
 		}
-		if (!tileHeader.tileRef || !tileHeader.dataSize)
-			break;
-
-		unsigned char* data = (unsigned char*)dtAlloc(tileHeader.dataSize, DT_ALLOC_PERM);
-		if (!data) break;
-		std::memset(data, 0, tileHeader.dataSize);
-		size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, savedFile);
-		if (tileDataReadReturnCode != 1)
-		{
-			dtFree(data);
-			fclose(savedFile);
-			UnloadNavigationData();
-			g_engfuncs.pfnServerPrint("The nav file has been corrupted or is out of date. Use the Nav Editor to regenerate it\n");
-			return false;
-		}
-
-		dtCompressedTileRef tile = 0;
-		dtStatus addTileStatus = NavMeshes[ONOS_NAV_MESH].tileCache->addTile(data, tileHeader.dataSize, DT_COMPRESSEDTILE_FREE_DATA, &tile);
-		if (dtStatusFailed(addTileStatus))
-		{
-			dtFree(data);
-		}
-
-		if (tile)
-			NavMeshes[ONOS_NAV_MESH].tileCache->buildNavMeshTile(tile, NavMeshes[ONOS_NAV_MESH].navMesh);
-	}
-
-	for (int i = 0; i < header.numBuildingTiles; ++i)
-	{
-		TileCacheTileHeader tileHeader;
-		size_t tileHeaderReadReturnCode = fread(&tileHeader, sizeof(tileHeader), 1, savedFile);
-		if (tileHeaderReadReturnCode != 1)
-		{
-			fclose(savedFile);
-			UnloadNavigationData();
-			g_engfuncs.pfnServerPrint("The nav file has been corrupted or is out of date. Use the Nav Editor to regenerate it\n");
-			return false;
-		}
-		if (!tileHeader.tileRef || !tileHeader.dataSize)
-			break;
-
-		unsigned char* data = (unsigned char*)dtAlloc(tileHeader.dataSize, DT_ALLOC_PERM);
-		if (!data) break;
-		std::memset(data, 0, tileHeader.dataSize);
-		size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, savedFile);
-		if (tileDataReadReturnCode != 1)
-		{
-			dtFree(data);
-			fclose(savedFile);
-			UnloadNavigationData();
-			g_engfuncs.pfnServerPrint("The nav file has been corrupted or is out of date. Use the Nav Editor to regenerate it\n");
-			return false;
-		}
-
-		dtCompressedTileRef tile = 0;
-		dtStatus addTileStatus = NavMeshes[BUILDING_NAV_MESH].tileCache->addTile(data, tileHeader.dataSize, DT_COMPRESSEDTILE_FREE_DATA, &tile);
-		if (dtStatusFailed(addTileStatus))
-		{
-			dtFree(data);
-		}
-
-		if (tile)
-			NavMeshes[BUILDING_NAV_MESH].tileCache->buildNavMeshTile(tile, NavMeshes[BUILDING_NAV_MESH].navMesh);
-	}
-
-	for (int i = 0; i <= BUILDING_NAV_MESH; i++)
-	{
-		NavMeshes[i].navQuery = dtAllocNavMeshQuery();
-
-		dtStatus initStatus = NavMeshes[i].navQuery->init(NavMeshes[i].navMesh, 65535);
-
-		if (dtStatusFailed(initStatus))
-		{
-			UnloadNavigationData();
-			g_engfuncs.pfnServerPrint("The nav file has been corrupted or is out of date. Use the Nav Editor to regenerate it\n");
-			return false;
-		}
-	}
-
-	fseek(savedFile, header.OffMeshConsOffset, SEEK_SET);
-
-	for (int i = 0; i < header.NumOffMeshCons; i++)
-	{
-		dtOffMeshConnection def;
-
-		fread(&def, sizeof(dtOffMeshConnection), 1, savedFile);
-
-		unsigned char area = def.area;
-
-		if (def.flags & NAV_FLAG_LADDER)
-		{
-			area = SAMPLE_POLYAREA_LADDER;
-		}
-
-		if (def.flags & SAMPLE_POLYFLAGS_LIFT)
-		{
-			area = SAMPLE_POLYAREA_LIFT;
-		}
-
-		NavOffMeshConnection NewMapConnection;
-		NewMapConnection.ConnectionFlags = def.flags;
-		NewMapConnection.DefaultConnectionFlags = def.flags;
-		NewMapConnection.FromLocation = Vector(def.pos[0], -def.pos[2], def.pos[1]);
-		NewMapConnection.ToLocation = Vector(def.pos[3], -def.pos[5], def.pos[4]);
-
-		NAV_AddOffMeshConnectionToAllNavmeshes(NewMapConnection.FromLocation, NewMapConnection.ToLocation, area, NewMapConnection.ConnectionFlags, def.bBiDir, NewMapConnection);
-
-		BaseMapConnections.push_back(NewMapConnection);
-	}
-
-	fseek(savedFile, header.NavHintOffset, SEEK_SET);
-
-	for (int i = 0; i < header.NumNavHints; i++)
-	{
-		LoadNavHint LoadedHint;
-		fread(&LoadedHint, sizeof(LoadNavHint), 1, savedFile);
-
-		NavHint NewHint;
-		NewHint.hintType = LoadedHint.hintType;
-		NewHint.Position = Vector(LoadedHint.position[0], -LoadedHint.position[2], LoadedHint.position[1]);
-		NewHint.OccupyingBuilding = nullptr;
-
-		MapNavHints.push_back(NewHint);
 	}
 
 	fclose(savedFile);
-
-	char SuccMsg[128];
+	
 	sprintf(SuccMsg, "Navigation data for %s loaded successfully\n", mapname);
 	g_engfuncs.pfnServerPrint(SuccMsg);
-
 
 	return true;
 }
@@ -923,31 +840,6 @@ void OnOffMeshConnectionAdded(dtOffMeshConnection* NewConnection)
 	}
 }
 
-void UTIL_PopulateBaseNavProfiles()
-{
-	std::memset(BaseNavProfiles, 0, sizeof(BaseNavProfiles));
-
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].bFlyingProfile = false;
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].ReachabilityFlag = AI_REACHABILITY_MARINE;
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_GROUND, 1.0f);
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_OBSTRUCTION, 2.0f);
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 2.0f);
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_FALLDAMAGE, 10.0f);
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_LADDER, 1.5f);
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_LIFT, 3.0f);
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].Filters.setIncludeFlags(SAMPLE_POLYFLAGS_ALL);
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].Filters.removeIncludeFlags(SAMPLE_POLYFLAGS_FLY);
-	BaseNavProfiles[PLAYER_BASE_NAV_PROFILE].Filters.setExcludeFlags(SAMPLE_POLYFLAGS_DISABLED);
-
-	BaseNavProfiles[ALL_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
-	BaseNavProfiles[ALL_NAV_PROFILE].Filters.setIncludeFlags(SAMPLE_POLYFLAGS_ALL);
-	BaseNavProfiles[ALL_NAV_PROFILE].Filters.setExcludeFlags(SAMPLE_POLYFLAGS_DISABLED);
-	BaseNavProfiles[ALL_NAV_PROFILE].bFlyingProfile = false;
-	BaseNavProfiles[ALL_NAV_PROFILE].ReachabilityFlag = AI_REACHABILITY_SKULK;
-}
-
 bool loadNavigationData(const char* mapname)
 {
 	// Unload the previous nav meshes if they're still loaded
@@ -961,7 +853,7 @@ bool loadNavigationData(const char* mapname)
 
 	NavmeshStatus = NAVMESH_STATUS_SUCCESS;
 	
-	UTIL_PopulateBaseNavProfiles();
+	PopulateBaseAgentProfiles();
 
 	return true;
 }
@@ -1009,7 +901,7 @@ Vector UTIL_GetRandomPointOnNavmesh(const AvHAIPlayer* pBot)
 
 Vector UTIL_GetRandomPointOnNavmeshInRadiusOfAreaType(NavMovementFlag Flag, const Vector origin, const float MaxRadius)
 {
-	const dtNavMeshQuery* m_NavQuery = UTIL_GetNavMeshQueryForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
+	const dtNavMeshQuery* m_NavQuery = UTIL_GetNavMeshQueryForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
 
 	if (!m_NavQuery) { return ZERO_VECTOR; }
 
@@ -1049,7 +941,7 @@ Vector UTIL_GetRandomPointOnNavmeshInRadiusOfAreaType(NavMovementFlag Flag, cons
 	return Result;
 }
 
-Vector UTIL_GetRandomPointOnNavmeshInRadius(const nav_profile &NavProfile, const Vector origin, const float MaxRadius)
+Vector UTIL_GetRandomPointOnNavmeshInRadius(const NavAgentProfile &NavProfile, const Vector origin, const float MaxRadius)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtQueryFilter* m_navFilter = &NavProfile.Filters;
@@ -1088,7 +980,7 @@ Vector UTIL_GetRandomPointOnNavmeshInRadius(const nav_profile &NavProfile, const
 	return Result;
 }
 
-Vector UTIL_GetRandomPointOnNavmeshInRadiusIgnoreReachability(const nav_profile& NavProfile, const Vector origin, const float MaxRadius)
+Vector UTIL_GetRandomPointOnNavmeshInRadiusIgnoreReachability(const NavAgentProfile& NavProfile, const Vector origin, const float MaxRadius)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtQueryFilter* m_navFilter = &NavProfile.Filters;
@@ -1127,7 +1019,7 @@ Vector UTIL_GetRandomPointOnNavmeshInRadiusIgnoreReachability(const nav_profile&
 	return Result;
 }
 
-Vector UTIL_GetRandomPointOnNavmeshInDonut(const nav_profile& NavProfile, const Vector origin, const float MinRadius, const float MaxRadius)
+Vector UTIL_GetRandomPointOnNavmeshInDonut(const NavAgentProfile& NavProfile, const Vector origin, const float MinRadius, const float MaxRadius)
 {
 	int maxIterations = 0;
 	float MinRadiusSq = sqrf(MinRadius);
@@ -1147,7 +1039,7 @@ Vector UTIL_GetRandomPointOnNavmeshInDonut(const nav_profile& NavProfile, const 
 	return ZERO_VECTOR;
 }
 
-Vector UTIL_GetRandomPointOnNavmeshInDonutIgnoreReachability(const nav_profile& NavProfile, const Vector origin, const float MinRadius, const float MaxRadius)
+Vector UTIL_GetRandomPointOnNavmeshInDonutIgnoreReachability(const NavAgentProfile& NavProfile, const Vector origin, const float MinRadius, const float MaxRadius)
 {
 	int maxIterations = 0;
 	float MinRadiusSq = sqrf(MinRadius);
@@ -1204,7 +1096,7 @@ Vector AdjustPointForPathfinding(const Vector Point)
 
 }
 
-Vector AdjustPointForPathfinding(const Vector Point, const nav_profile& NavProfile)
+Vector AdjustPointForPathfinding(const Vector Point, const NavAgentProfile& NavProfile)
 {
 	Vector ProjectedPoint = UTIL_ProjectPointToNavmesh(Point, Vector(400.0f, 100.0f, 400.0f), NavProfile);
 
@@ -1236,7 +1128,7 @@ Vector AdjustPointForPathfinding(const Vector Point, const nav_profile& NavProfi
 }
 
 // Special path finding that takes flight movement into account
-dtStatus FindFlightPathToPoint(const nav_profile &NavProfile, Vector FromLocation, Vector ToLocation, vector<bot_path_node>& path, float MaxAcceptableDistance)
+dtStatus FindFlightPathToPoint(const NavAgentProfile &NavProfile, Vector FromLocation, Vector ToLocation, vector<bot_path_node>& path, float MaxAcceptableDistance)
 {
 	TraceResult directHit;
 
@@ -1495,7 +1387,7 @@ Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector
 	return CurrentHighest;
 }
 
-dtStatus FindPathClosestToPoint(const nav_profile& NavProfile, const Vector FromLocation, const Vector ToLocation, vector<bot_path_node>& path, float MaxAcceptableDistance)
+dtStatus FindPathClosestToPoint(const NavAgentProfile& NavProfile, const Vector FromLocation, const Vector ToLocation, vector<bot_path_node>& path, float MaxAcceptableDistance)
 {
 	if (NavProfile.bFlyingProfile)
 	{
@@ -2031,7 +1923,7 @@ NavOffMeshConnection* UTIL_GetOffMeshConnectionForLift(DynamicMapObject* LiftRef
 	return NearestConnection;
 }
 
-bool UTIL_PointIsReachable(const nav_profile &NavProfile, const Vector FromLocation, const Vector ToLocation, const float MaxAcceptableDistance)
+bool UTIL_PointIsReachable(const NavAgentProfile &NavProfile, const Vector FromLocation, const Vector ToLocation, const float MaxAcceptableDistance)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
@@ -2548,7 +2440,7 @@ DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, con
 
 bool UTIL_IsPathBlockedByObject(const Vector StartLoc, const Vector EndLoc, DynamicMapObject* SearchObject)
 {
-	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(EndLoc, BaseNavProfiles[ALL_NAV_PROFILE]);
+	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(EndLoc, GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
 
 	if (!ValidNavmeshPoint)
 	{
@@ -2560,7 +2452,7 @@ bool UTIL_IsPathBlockedByObject(const Vector StartLoc, const Vector EndLoc, Dyna
 
 	// Now we find a path backwards from the valid nav mesh point to our location, trying to get as close as we can to it
 
-	dtStatus PathFindingStatus = FindPathClosestToPoint(BaseNavProfiles[ALL_NAV_PROFILE], StartLoc, ValidNavmeshPoint, TestPath, 50.0f);
+	dtStatus PathFindingStatus = FindPathClosestToPoint(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), StartLoc, ValidNavmeshPoint, TestPath, 50.0f);
 
 	if (dtStatusSucceed(PathFindingStatus))
 	{
@@ -2597,7 +2489,7 @@ DynamicMapObject* UTIL_GetNearestObjectTrigger(const Vector Location, DynamicMap
 		{
 			Vector ButtonLocation = UTIL_GetButtonFloorLocation(Location, ThisTrigger->Edict);
 
-			if ((!bCheckBlockedByDoor || !UTIL_IsPathBlockedByObject(Location, ButtonLocation, Object)) && UTIL_PointIsReachable(GetBaseNavProfile(PLAYER_BASE_NAV_PROFILE), Location, ButtonLocation, 64.0f))
+			if ((!bCheckBlockedByDoor || !UTIL_IsPathBlockedByObject(Location, ButtonLocation, Object)) && UTIL_PointIsReachable(GetBaseNavProfile(PLAYER_BASE_NavAgentProfile), Location, ButtonLocation, 64.0f))
 			{
 				float ThisDist = vDist3DSq(Location, ButtonLocation);
 
@@ -3496,7 +3388,7 @@ bool NAV_CanBoardPlatform(AvHAIPlayer* pBot, DynamicMapObject* Platform, Vector 
 	Vector ClosestCurrentPoint = UTIL_GetClosestPointOnEntityToLocation(BoardingPoint, Platform->Edict);
 	ClosestCurrentPoint.z = BoardingPoint.z;
 
-	nav_profile CheckProfile = (pBot) ? pBot->BotNavInfo.NavProfile : GetBaseNavProfile(PLAYER_BASE_NAV_PROFILE);
+	NavAgentProfile CheckProfile = (pBot) ? pBot->BotNavInfo.NavProfile : GetBaseNavProfile(PLAYER_BASE_NavAgentProfile);
 
 	Vector ProjectedLocation = UTIL_ProjectPointToNavmesh(ClosestCurrentPoint, Vector(Dist, Dist, 50.0f), CheckProfile);
 
@@ -3967,28 +3859,28 @@ bool UTIL_PointIsDirectlyReachable(const AvHAIPlayer* pBot, const Vector start, 
 
 }
 
-const dtNavMesh* UTIL_GetNavMeshForProfile(const nav_profile& NavProfile)
+const dtNavMesh* UTIL_GetNavMeshForProfile(const NavAgentProfile& NavProfile)
 {
 	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= MAX_NAV_MESHES) { return nullptr; }
 
 	return NavMeshes[NavProfile.NavMeshIndex].navMesh;
 }
 
-const dtNavMeshQuery* UTIL_GetNavMeshQueryForProfile(const nav_profile& NavProfile)
+const dtNavMeshQuery* UTIL_GetNavMeshQueryForProfile(const NavAgentProfile& NavProfile)
 {
 	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= MAX_NAV_MESHES) { return nullptr; }
 
 	return NavMeshes[NavProfile.NavMeshIndex].navQuery;
 }
 
-const dtTileCache* UTIL_GetTileCacheForProfile(const nav_profile& NavProfile)
+const dtTileCache* UTIL_GetTileCacheForProfile(const NavAgentProfile& NavProfile)
 {
 	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= MAX_NAV_MESHES) { return nullptr; }
 
 	return NavMeshes[NavProfile.NavMeshIndex].tileCache;
 }
 
-bool UTIL_PointIsDirectlyReachable(const nav_profile &NavProfile, const Vector start, const Vector target)
+bool UTIL_PointIsDirectlyReachable(const NavAgentProfile &NavProfile, const Vector start, const Vector target)
 {
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
@@ -4060,7 +3952,7 @@ bool UTIL_PointIsDirectlyReachable(const nav_profile &NavProfile, const Vector s
 	return (Height == 0.0f || Height == EndNearest[1]);
 }
 
-bool UTIL_TraceNav(const nav_profile &NavProfile, const Vector start, const Vector target, const float MaxAcceptableDistance)
+bool UTIL_TraceNav(const NavAgentProfile &NavProfile, const Vector start, const Vector target, const float MaxAcceptableDistance)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
@@ -4133,7 +4025,7 @@ bool UTIL_TraceNav(const nav_profile &NavProfile, const Vector start, const Vect
 	return (Height == 0.0f || Height == EndNearest[1]);
 }
 
-void UTIL_TraceNavLine(const nav_profile &NavProfile, const Vector Start, const Vector End, nav_hitresult* HitResult)
+void UTIL_TraceNavLine(const NavAgentProfile &NavProfile, const Vector Start, const Vector End, nav_hitresult* HitResult)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
@@ -4219,9 +4111,9 @@ void UTIL_TraceNavLine(const nav_profile &NavProfile, const Vector Start, const 
 
 bool UTIL_PointIsDirectlyReachable(const Vector start, const Vector target)
 {
-	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtQueryFilter* m_Filter = &BaseNavProfiles[ALL_NAV_PROFILE].Filters;
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtQueryFilter* m_Filter = &GetBaseAgentProfile(NAV_PROFILE_DEFAULT).Filters;
 
 	if (!m_navQuery) { return false; }
 
@@ -4291,9 +4183,9 @@ bool UTIL_PointIsDirectlyReachable(const Vector start, const Vector target)
 
 float UTIL_PointIsDirectlyReachable_DEBUG(const Vector start, const Vector target)
 {
-	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtQueryFilter* m_Filter = &BaseNavProfiles[ALL_NAV_PROFILE].Filters;
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtQueryFilter* m_Filter = &GetBaseAgentProfile(NAV_PROFILE_DEFAULT).Filters;
 
 	if (!m_navQuery) { return 0.0f; }
 
@@ -4372,7 +4264,7 @@ float UTIL_PointIsDirectlyReachable_DEBUG(const Vector start, const Vector targe
 	return 2.2f;
 }
 
-dtPolyRef UTIL_GetNearestPolyRefForLocation(const nav_profile& NavProfile, const Vector Location)
+dtPolyRef UTIL_GetNearestPolyRefForLocation(const NavAgentProfile& NavProfile, const Vector Location)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
@@ -4394,9 +4286,9 @@ dtPolyRef UTIL_GetNearestPolyRefForLocation(const nav_profile& NavProfile, const
 
 dtPolyRef UTIL_GetNearestPolyRefForLocation(const Vector Location)
 {
-	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtQueryFilter* m_navFilter = &BaseNavProfiles[ALL_NAV_PROFILE].Filters;
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtQueryFilter* m_navFilter = &GetBaseAgentProfile(NAV_PROFILE_DEFAULT).Filters;
 
 	if (!m_navQuery) { return 0; }
 
@@ -4414,9 +4306,9 @@ dtPolyRef UTIL_GetNearestPolyRefForLocation(const Vector Location)
 
 dtPolyRef UTIL_GetNearestPolyRefForEntity(const edict_t* Edict)
 {
-	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtQueryFilter* m_navFilter = &BaseNavProfiles[ALL_NAV_PROFILE].Filters;
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtQueryFilter* m_navFilter = &GetBaseAgentProfile(NAV_PROFILE_DEFAULT).Filters;
 
 	if (!m_navQuery) { return 0; }
 
@@ -4434,7 +4326,7 @@ dtPolyRef UTIL_GetNearestPolyRefForEntity(const edict_t* Edict)
 	return result;
 }
 
-unsigned char UTIL_GetNavAreaAtLocation(const nav_profile &NavProfile, const Vector Location)
+unsigned char UTIL_GetNavAreaAtLocation(const NavAgentProfile &NavProfile, const Vector Location)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
@@ -4467,9 +4359,9 @@ unsigned char UTIL_GetNavAreaAtLocation(const nav_profile &NavProfile, const Vec
 
 unsigned char UTIL_GetNavAreaAtLocation(const Vector Location)
 {
-	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtQueryFilter* m_navFilter = &BaseNavProfiles[ALL_NAV_PROFILE].Filters;
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtQueryFilter* m_navFilter = &GetBaseAgentProfile(NAV_PROFILE_DEFAULT).Filters;
 
 	if (!m_navQuery) { return 0; }
 
@@ -4708,7 +4600,7 @@ void SetBaseNavProfile(AvHAIPlayer* pBot)
 
 void UpdateBotMoveProfile(AvHAIPlayer* pBot, BotMoveStyle MoveStyle)
 {	
-	pBot->BotNavInfo.NavProfile = GetBaseNavProfile(PLAYER_BASE_NAV_PROFILE);
+	pBot->BotNavInfo.NavProfile = GetBaseNavProfile(PLAYER_BASE_NavAgentProfile);
 }
 
 bool NAV_GenerateNewBasePath(AvHAIPlayer* pBot, const Vector NewDestination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist)
@@ -5172,7 +5064,7 @@ Vector FindClosestPointBackOnPath(AvHAIPlayer* pBot, Vector Destination)
 	return ZERO_VECTOR;
 }
 
-Vector FindClosestNavigablePointToDestination(const nav_profile& NavProfile, const Vector FromLocation, const Vector ToLocation, float MaxAcceptableDistance)
+Vector FindClosestNavigablePointToDestination(const NavAgentProfile& NavProfile, const Vector FromLocation, const Vector ToLocation, float MaxAcceptableDistance)
 {
 	vector<bot_path_node> Path;
 	Path.clear();
@@ -5614,9 +5506,9 @@ bool BotIsAtLocation(const AvHAIPlayer* pBot, const Vector Destination)
 
 Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents)
 {
-	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(BaseNavProfiles[ALL_NAV_PROFILE]);
-	const dtQueryFilter* m_navFilter = &BaseNavProfiles[ALL_NAV_PROFILE].Filters;
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	const dtQueryFilter* m_navFilter = &GetBaseAgentProfile(NAV_PROFILE_DEFAULT).Filters;
 
 	if (!m_navQuery) { return ZERO_VECTOR; }
 
@@ -5768,7 +5660,7 @@ Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, c
 	return ZERO_VECTOR;
 }
 
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const nav_profile &NavProfile)
+Vector UTIL_ProjectPointToNavmesh(const Vector Location, const NavAgentProfile &NavProfile)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
@@ -5817,7 +5709,7 @@ Vector UTIL_ProjectPointToNavmesh(const Vector Location, const nav_profile &NavP
 	return ZERO_VECTOR;
 }
 
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, const nav_profile& NavProfile)
+Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, const NavAgentProfile& NavProfile)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
@@ -5868,7 +5760,7 @@ Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, c
 	return ZERO_VECTOR;
 }
 
-bool UTIL_PointIsOnNavmesh(const Vector Location, const nav_profile &NavProfile, const Vector SearchExtents)
+bool UTIL_PointIsOnNavmesh(const Vector Location, const NavAgentProfile &NavProfile, const Vector SearchExtents)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
@@ -5889,7 +5781,7 @@ bool UTIL_PointIsOnNavmesh(const Vector Location, const nav_profile &NavProfile,
 
 }
 
-bool UTIL_PointIsOnNavmesh(const nav_profile& NavProfile, const Vector Location, const Vector SearchExtents)
+bool UTIL_PointIsOnNavmesh(const NavAgentProfile& NavProfile, const Vector Location, const Vector SearchExtents)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
@@ -5991,7 +5883,7 @@ void HandlePlayerAvoidance(AvHAIPlayer* pBot, const Vector MoveDestination)
 	}
 }
 
-float UTIL_GetPathCostBetweenLocations(const nav_profile &NavProfile , const Vector FromLocation, const Vector ToLocation)
+float UTIL_GetPathCostBetweenLocations(const NavAgentProfile &NavProfile , const Vector FromLocation, const Vector ToLocation)
 {
 	vector<bot_path_node> path;
 	path.clear();
@@ -6391,13 +6283,7 @@ Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdi
 		ClosestPoint = UTIL_GetCentreOfEntity(ButtonEdict);
 	}
 
-	nav_profile ButtonNavProfile;
-	memcpy(&ButtonNavProfile, &BaseNavProfiles[ALL_NAV_PROFILE], sizeof(nav_profile));
-
-	// Don't pick a button on the other side of the door
-	ButtonNavProfile.Filters.removeIncludeFlags(SAMPLE_POLYFLAGS_DOOR);
-
-	Vector ButtonAccessPoint = UTIL_ProjectPointToNavmesh(ClosestPoint, Vector(100.0f, 100.0f, 100.0f), ButtonNavProfile);
+	Vector ButtonAccessPoint = UTIL_ProjectPointToNavmesh(ClosestPoint, Vector(100.0f, 100.0f, 100.0f), BaseAgentProfiles[NAV_PROFILE_DEFAULT]);
 
 	if (vIsZero(ButtonAccessPoint))
 	{
@@ -6431,7 +6317,7 @@ Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdi
 		NewProjection = ClosestPoint + Vector(0.0f, 0.0f, 100.0f);
 	}
 
-	Vector NewButtonAccessPoint = UTIL_ProjectPointToNavmesh(NewProjection, ButtonNavProfile);
+	Vector NewButtonAccessPoint = UTIL_ProjectPointToNavmesh(NewProjection, BaseAgentProfiles[NAV_PROFILE_DEFAULT]);
 
 	if (vIsZero(NewButtonAccessPoint))
 	{
@@ -6728,14 +6614,20 @@ DynamicMapObject* UTIL_GetClosestLiftToPoints(const Vector StartPoint, const Vec
 	return Result;
 }
 
-bool NAV_AddOffMeshConnectionToNavmesh(unsigned int NavMeshIndex, Vector StartLoc, Vector EndLoc, unsigned char area, unsigned int flags, bool bBiDirectional, NavOffMeshConnection& NewConnectionDef)
+NavOffMeshConnection* NAV_AddOffMeshConnectionToNavmesh(unsigned int NavMeshIndex, Vector StartLoc, Vector EndLoc, unsigned char area, unsigned int flags, bool bBiDirectional)
 {
-	if (NavMeshIndex >= MAX_NAV_MESHES || !NavMeshes[NavMeshIndex].tileCache) { return true; }
+	if (NavMeshIndex >= MAX_NAV_MESHES || !NavMeshes[NavMeshIndex].tileCache) { return nullptr; }
 
 	Vector ProjectedStart = UTIL_ProjectPointToNavmesh(StartLoc, NavMeshIndex);
 	Vector ProjectedEnd = UTIL_ProjectPointToNavmesh(EndLoc, NavMeshIndex);
 
-	if (vIsZero(ProjectedStart) || vIsZero(ProjectedEnd)) { return false; }
+	if (vIsZero(ProjectedStart) || vIsZero(ProjectedEnd)) { return nullptr; }
+
+	NavOffMeshConnection NewConnectionDef;
+	NewConnectionDef.FromLocation = ProjectedStart;
+	NewConnectionDef.ToLocation = ProjectedEnd;
+	NewConnectionDef.DefaultConnectionFlags = flags;
+	NewConnectionDef.ConnectionFlags = flags;
 
 	// Now flip the coordinates for Detour
 
@@ -6750,24 +6642,40 @@ bool NAV_AddOffMeshConnectionToNavmesh(unsigned int NavMeshIndex, Vector StartLo
 	if (dtStatusSucceed(AddStatus))
 	{
 		NewConnectionDef.NavMeshesIndices[NavMeshIndex] = (unsigned int)ref;
-		return true;
+
+		NavMeshes[NavMeshIndex].MeshConnections.push_back(NewConnectionDef);
+
+		return &(*prev(NavMeshes[NavMeshIndex].MeshConnections.end()));
 	}
 
-	return false;
+	return nullptr;
 }
 
-bool NAV_AddOffMeshConnectionToAllNavmeshes(Vector StartLoc, Vector EndLoc, unsigned char area, unsigned int flags, bool bBiDirectional, NavOffMeshConnection& NewConnectionDef)
+bool NAV_AddOffMeshConnectionToAllNavmeshes(Vector StartLoc, Vector EndLoc, unsigned char area, unsigned int flags, bool bBiDirectional)
 {
 	bool bSuccess = true;
 
 	for (int i = 0; i < MAX_NAV_MESHES; i++)
 	{
-		bool bThisSuccess = NAV_AddOffMeshConnectionToNavmesh(i, StartLoc, EndLoc, area, flags, bBiDirectional, NewConnectionDef);
+		NavOffMeshConnection* NewConnection = NAV_AddOffMeshConnectionToNavmesh(i, StartLoc, EndLoc, area, flags, bBiDirectional);
 
-		if (!bThisSuccess) { bSuccess = false; }
+		if (!NewConnection) { bSuccess = false; }
 	}
 
 	return bSuccess;
+}
+
+NavHint* NAV_AddHintToNavmesh(unsigned int NavMeshIndex, Vector Location, unsigned int HintFlags)
+{
+	if (NavMeshIndex >= MAX_NAV_MESHES || !NavMeshes[NavMeshIndex].tileCache) { return nullptr; }
+
+	NavHint NewHint;
+	NewHint.Position = Location;
+	NewHint.hintType = HintFlags;
+
+	NavMeshes[NavMeshIndex].MeshHints.push_back(NewHint);
+
+	return &(*prev(NavMeshes[NavMeshIndex].MeshHints.end()));
 }
 
 bool NAV_RemoveOffMeshConnectionFromAllNavmeshes(NavOffMeshConnection& RemoveConnectionDef)
@@ -6793,9 +6701,9 @@ bool NAV_RemoveOffMeshConnectionFromAllNavmeshes(NavOffMeshConnection& RemoveCon
 	return bSuccess;
 }
 
-const nav_profile GetBaseNavProfile(const int index)
+const NavAgentProfile GetBaseNavProfile(const int index)
 {
-	return BaseNavProfiles[index];
+	return BaseAgentProfiles[index];
 }
 
 const dtOffMeshConnection* DEBUG_FindNearestOffMeshConnectionToPoint(const Vector Point, unsigned int FilterFlags)
@@ -6831,7 +6739,7 @@ const dtOffMeshConnection* DEBUG_FindNearestOffMeshConnectionToPoint(const Vecto
 	return Result;
 }
 
-dtStatus DEBUG_TestFindPath(const nav_profile& NavProfile, const Vector FromLocation, const Vector ToLocation, vector<bot_path_node>& path, float MaxAcceptableDistance)
+dtStatus DEBUG_TestFindPath(const NavAgentProfile& NavProfile, const Vector FromLocation, const Vector ToLocation, vector<bot_path_node>& path, float MaxAcceptableDistance)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
@@ -7139,7 +7047,7 @@ void NAV_SetPickupMovementTask(AvHAIPlayer* pBot, edict_t* ThingToPickup, Dynami
 	MoveTask->TaskLocation = ThingToPickup->v.origin;
 }
 
-vector<NavHint*> NAV_GetHintsOfType(unsigned int HintType, bool bUnoccupiedOnly)
+vector<NavHint*> NAV_GetHintsOfType(unsigned int HintType)
 {
 	vector<NavHint*> Result;
 
@@ -7149,8 +7057,6 @@ vector<NavHint*> NAV_GetHintsOfType(unsigned int HintType, bool bUnoccupiedOnly)
 	{
 		if (HintType != 0 && !(it->hintType & HintType)) { continue; }
 
-		if (bUnoccupiedOnly && !FNullEnt(it->OccupyingBuilding)) { continue; }
-
 		Result.push_back(&(*it));
 	}
 
@@ -7158,7 +7064,7 @@ vector<NavHint*> NAV_GetHintsOfType(unsigned int HintType, bool bUnoccupiedOnly)
 
 }
 
-vector<NavHint*> NAV_GetHintsOfTypeInRadius(unsigned int HintType, Vector SearchLocation, float Radius, bool bUnoccupiedOnly)
+vector<NavHint*> NAV_GetHintsOfTypeInRadius(unsigned int HintType, Vector SearchLocation, float Radius)
 {
 	vector<NavHint*> Result;
 
@@ -7169,8 +7075,6 @@ vector<NavHint*> NAV_GetHintsOfTypeInRadius(unsigned int HintType, Vector Search
 	for (auto it = MapNavHints.begin(); it != MapNavHints.end(); it++)
 	{
 		if (HintType != 0 && !(it->hintType & HintType)) { continue; }
-
-		if (bUnoccupiedOnly && !FNullEnt(it->OccupyingBuilding)) { continue; }
 
 		if (vDist3DSq(it->Position, SearchLocation) < SearchRadius)
 		{
@@ -8148,7 +8052,7 @@ DynamicMapObject* NAV_GetTriggerReachableFromPlatform(float LiftHeight, DynamicM
 	return nullptr;
 }
 
-DynamicMapObject* NAV_GetBestTriggerForObject(DynamicMapObject* ObjectToActivate, edict_t* PlayerToTrigger, const nav_profile& NavProfile)
+DynamicMapObject* NAV_GetBestTriggerForObject(DynamicMapObject* ObjectToActivate, edict_t* PlayerToTrigger, const NavAgentProfile& NavProfile)
 {
 	if (ObjectToActivate->Triggers.size() == 0 || !ObjectToActivate || FNullEnt(PlayerToTrigger)) { return nullptr; }
 
@@ -8362,7 +8266,7 @@ void DEBUG_PrintObjectInfo(DynamicMapObject* Object)
 
 	UTIL_DrawHUDText(AIMGR_GetListenServerEdict(), 1, 0.6, 0.1f, 255, 255, 255, buf);
 
-	DynamicMapObject* BestTrigger = NAV_GetBestTriggerForObject(Object, AIMGR_GetListenServerEdict(), GetBaseNavProfile(PLAYER_BASE_NAV_PROFILE));
+	DynamicMapObject* BestTrigger = NAV_GetBestTriggerForObject(Object, AIMGR_GetListenServerEdict(), GetBaseNavProfile(PLAYER_BASE_NavAgentProfile));
 
 	if (BestTrigger)
 	{

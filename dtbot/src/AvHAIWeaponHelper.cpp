@@ -8,7 +8,6 @@
 #include "AvHAIPlayerManager.h"
 
 extern nav_mesh NavMeshes[MAX_NAV_MESHES]; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
-extern nav_profile BaseNavProfiles[MAX_NAV_PROFILES]; // Array of nav profiles
 
 AIWeaponTypeDefinition WeaponList[32];
 AvHAIPlayerInventory PlayerInventories[32];
@@ -204,7 +203,7 @@ Vector UTIL_GetGrenadeThrowTarget(edict_t* Player, const Vector TargetLocation, 
 	std::vector<bot_path_node> CheckPath;
 	CheckPath.clear();
 
-	dtStatus Status = FindPathClosestToPoint(GetBaseNavProfile(ALL_NAV_PROFILE), Player->v.origin, TargetLocation, CheckPath, ExplosionRadius);
+	dtStatus Status = FindPathClosestToPoint(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), Player->v.origin, TargetLocation, CheckPath, ExplosionRadius);
 
 	if (dtStatusSucceed(Status))
 	{

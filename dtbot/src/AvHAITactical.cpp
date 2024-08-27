@@ -25,7 +25,6 @@
 
 
 extern nav_mesh NavMeshes[MAX_NAV_MESHES]; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
-extern nav_profile BaseNavProfiles[MAX_NAV_PROFILES]; // Array of nav profiles
 
 bool bNavMeshModified = false;
 extern bool bTileCacheUpToDate;
@@ -339,7 +338,7 @@ Vector AITAC_GetRandomHintInLocation(const unsigned int HintFlags, const Vector 
 {
 	Vector Result = ZERO_VECTOR;
 
-	std::vector<NavHint*> IPHints = NAV_GetHintsOfTypeInRadius(HintFlags, SearchLocation, SearchRadius, true);
+	std::vector<NavHint*> IPHints = NAV_GetHintsOfTypeInRadius(HintFlags, SearchLocation, SearchRadius);
 	int WinningRoll = 0;
 
 	for (auto it = IPHints.begin(); it != IPHints.end(); it++)

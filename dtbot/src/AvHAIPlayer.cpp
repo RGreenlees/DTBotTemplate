@@ -11,7 +11,6 @@
 #include "AvHAIConfig.h"
 
 extern nav_mesh NavMeshes[MAX_NAV_MESHES]; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
-extern nav_profile BaseNavProfiles[MAX_NAV_PROFILES]; // Array of nav profiles
 
 int fake_arg_count;
 extern char g_argv[1024];
@@ -796,11 +795,6 @@ void StartNewBotFrame(AvHAIPlayer* pBot)
 	pBot->BotNavInfo.bHasAttemptedJump = false;
 
 	pBot->BotNavInfo.bShouldWalk = false;
-
-	if (pBot->BotNavInfo.NavProfile.ReachabilityFlag == AI_REACHABILITY_NONE)
-	{
-		SetBaseNavProfile(pBot);
-	}
 }
 
 void EndBotFrame(AvHAIPlayer* pBot)

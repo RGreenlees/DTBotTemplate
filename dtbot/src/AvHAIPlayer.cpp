@@ -586,6 +586,52 @@ void BotUpdateView(AvHAIPlayer* pBot)
 	
 }
 
+bool IsEntityVisibleToBot(AvHAIPlayer* pBot, const edict_t* Entity)
+{
+	if (!IsEntityInBotFOV(pBot, Entity)) { return false; }
+
+	float EntityRadius = Entity->v.size.Length2D() * 0.5f;
+	float EntityHeight = Entity->v.absmax.z - Entity->v.absmin.z;
+
+	if (UTIL_TraceEntity(pBot->Edict, pBot->CurrentEyePosition, Entity->v.origin) == Entity)
+	{
+		return true;
+	}
+
+	Vector FeetLocation = Vector(Entity->v.origin.x, Entity->v.origin.y, Entity->v.absmin.z + 5.0f);
+
+	if (UTIL_TraceEntity(pBot->Edict, pBot->CurrentEyePosition, FeetLocation) == Entity)
+	{
+		return true;
+	}
+
+	Vector HeadLocation = Vector(Entity->v.origin.x, Entity->v.origin.y, Entity->v.absmax.z - 5.0f);
+
+	if (UTIL_TraceEntity(pBot->Edict, pBot->CurrentEyePosition, FeetLocation) == Entity)
+	{
+		return true;
+	}
+
+	Vector ViewAngle = UTIL_GetVectorNormal2D(Entity->v.origin - pBot->CurrentEyePosition);
+	Vector RightAngle = UTIL_GetVectorNormal2D(UTIL_GetCrossProduct(ViewAngle, UP_VECTOR));
+
+	Vector RightSide = Entity->v.origin + (RightAngle * EntityRadius);
+
+	if (UTIL_TraceEntity(pBot->Edict, pBot->CurrentEyePosition, RightSide) == Entity)
+	{
+		return true;
+	}
+
+	Vector LeftSide = Entity->v.origin - (RightAngle * EntityRadius);
+
+	if (UTIL_TraceEntity(pBot->Edict, pBot->CurrentEyePosition, LeftSide) == Entity)
+	{
+		return true;
+	}
+
+	return false;
+}
+
 void UpdateAIPlayerViewFrustum(AvHAIPlayer* pBot)
 {
 	MAKE_VECTORS(pBot->Edict->v.v_angle);
@@ -595,17 +641,17 @@ void UpdateAIPlayerViewFrustum(AvHAIPlayer* pBot)
 
 	Vector fc = (pBot->Edict->v.origin + pBot->Edict->v.view_ofs) + (forward * BOT_MAX_VIEW);
 
-	Vector fbl = fc + (up * f_ffheight / 2.0f) - (right * f_ffwidth / 2.0f);
-	Vector fbr = fc + (up * f_ffheight / 2.0f) + (right * f_ffwidth / 2.0f);
-	Vector ftl = fc - (up * f_ffheight / 2.0f) - (right * f_ffwidth / 2.0f);
-	Vector ftr = fc - (up * f_ffheight / 2.0f) + (right * f_ffwidth / 2.0f);
+	Vector fbl = fc + (up * f_ffheight * 0.5f) - (right * f_ffwidth * 0.5f);
+	Vector fbr = fc + (up * f_ffheight * 0.5f) + (right * f_ffwidth * 0.5f);
+	Vector ftl = fc - (up * f_ffheight * 0.5f) - (right * f_ffwidth * 0.5f);
+	Vector ftr = fc - (up * f_ffheight * 0.5f) + (right * f_ffwidth * 0.5f);
 
 	Vector nc = (pBot->Edict->v.origin + pBot->Edict->v.view_ofs) + (forward * BOT_MIN_VIEW);
 
-	Vector nbl = nc + (up * f_fnheight / 2.0f) - (right * f_fnwidth / 2.0f);
-	Vector nbr = nc + (up * f_fnheight / 2.0f) + (right * f_fnwidth / 2.0f);
-	Vector ntl = nc - (up * f_fnheight / 2.0f) - (right * f_fnwidth / 2.0f);
-	Vector ntr = nc - (up * f_fnheight / 2.0f) + (right * f_fnwidth / 2.0f);
+	Vector nbl = nc + (up * f_fnheight * 0.5f) - (right * f_fnwidth * 0.5f);
+	Vector nbr = nc + (up * f_fnheight * 0.5f) + (right * f_fnwidth * 0.5f);
+	Vector ntl = nc - (up * f_fnheight * 0.5f) - (right * f_fnwidth * 0.5f);
+	Vector ntr = nc - (up * f_fnheight * 0.5f) + (right * f_fnwidth * 0.5f);
 
 	UTIL_SetFrustumPlane(&pBot->viewFrustum[FRUSTUM_PLANE_TOP], ftl, ntl, ntr);
 	UTIL_SetFrustumPlane(&pBot->viewFrustum[FRUSTUM_PLANE_BOTTOM], fbr, nbr, nbl);
@@ -615,21 +661,25 @@ void UpdateAIPlayerViewFrustum(AvHAIPlayer* pBot)
 	UTIL_SetFrustumPlane(&pBot->viewFrustum[FRUSTUM_PLANE_FAR], fbl, ftl, ftr);
 }
 
-bool IsPlayerInBotFOV(AvHAIPlayer* Observer, edict_t* TargetPlayer)
+bool IsEntityInBotFOV(AvHAIPlayer* Observer, const edict_t* Entity)
 {
-	if (FNullEnt(TargetPlayer) || !IsPlayerActiveInGame(TargetPlayer)) { return false; }
+	// Obviously can't see the object if it's a null entity, or is set not to be drawn
+	if (FNullEnt(Entity) || (Entity->v.effects & EF_NODRAW)) { return false; }
+
+	float EntityRadius = Entity->v.size.Length2D() * 0.5f;
+	float EntityHeight = Entity->v.absmax.z - Entity->v.absmin.z;
+
 	// To make things a little more accurate, we're going to treat players as cylinders rather than boxes
 	for (int i = 0; i < 6; i++)
 	{
 		// Our cylinder must be inside all planes to be visible, otherwise return false
-		if (!UTIL_CylinderInsidePlane(&Observer->viewFrustum[i], TargetPlayer->v.origin - Vector(0, 0, 5), 60.0f, 16.0f))
+		if (!UTIL_CylinderInsidePlane(&Observer->viewFrustum[i], Entity->v.origin, EntityHeight, EntityRadius))
 		{
 			return false;
 		}
 	}
 
 	return true;
-
 }
 
 Vector GetVisiblePointOnPlayerFromObserver(edict_t* Observer, edict_t* TargetPlayer)
@@ -870,7 +920,6 @@ void AIPlayerThink(AvHAIPlayer* pBot)
 		else
 		{
 			MoveTo(pBot, pBot->TestLocation, MOVESTYLE_NORMAL);
-			AIDEBUG_DrawBotPath(pBot);
 		}
 	}
 }

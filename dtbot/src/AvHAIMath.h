@@ -187,7 +187,7 @@ bool UTIL_PointInsidePlane(const frustum_plane_t* plane, const Vector point);
 
 /* Tests to see if the defined cylinder is intersecting with the supplied frustum plane.
 
-   Since players are always upright, it is reasonable to assume that it is impossible for both the
+   Since edict collision boxes are always upright and the view roll is always 0, it is reasonable to assume that it is impossible for both the
    top and bottom of the cylinder to be outside the plane if it is intersecting, therefore
    we only need to test the top and bottom cylinder at the closest point to the plane.*/
 bool UTIL_CylinderInsidePlane(const frustum_plane_t* plane, const Vector centre, float height, float radius);

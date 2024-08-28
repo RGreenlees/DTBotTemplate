@@ -593,7 +593,7 @@ float UTIL_WaterLevel(const Vector& position, float minz, float maxz)
 	float diff = maxz - minz;
 	while (diff > 1.0)
 	{
-		midUp.z = minz + diff / 2.0;
+		midUp.z = minz + diff * 0.5f;
 		if (UTIL_PointContents(midUp) == CONTENTS_WATER)
 		{
 			minz = midUp.z;

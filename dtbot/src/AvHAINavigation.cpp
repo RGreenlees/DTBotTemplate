@@ -6200,7 +6200,6 @@ Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdi
 
 void NAV_PopulateConnectionsAffectedByDynamicObject(DynamicMapObject* Object)
 {
-	Object->AffectedConnections.clear();
 
 	Vector HalfExtents = (Object->Edict->v.size * 0.5f);
 	HalfExtents.x += 16.0f;
@@ -6211,30 +6210,32 @@ void NAV_PopulateConnectionsAffectedByDynamicObject(DynamicMapObject* Object)
 	{
 		if (!NavMeshes[i].tileCache) { continue; }
 
-		for (auto it = NavMeshes[i].MeshConnections.begin(); it != NavMeshes[i].MeshConnections.end(); it++)
+		for (auto stopIt = Object->StopPoints.begin(); stopIt != Object->StopPoints.end(); stopIt++)
 		{
-			Vector ConnStart = it->FromLocation + Vector(0.0f, 0.0f, 15.0f);
-			Vector ConnEnd = it->ToLocation + Vector(0.0f, 0.0f, 15.0f);
-			Vector MidPoint = ConnStart + ((ConnEnd - ConnStart) * 0.5f);
-			MidPoint.z = fmaxf(ConnStart.z, ConnEnd.z);
+			stopIt->AffectedConnections.clear();
 
-			for (auto stopIt = Object->StopPoints.begin(); stopIt != Object->StopPoints.end(); stopIt++)
+			for (auto it = NavMeshes[i].MeshConnections.begin(); it != NavMeshes[i].MeshConnections.end(); it++)
 			{
+				Vector ConnStart = it->FromLocation + Vector(0.0f, 0.0f, 15.0f);
+				Vector ConnEnd = it->ToLocation + Vector(0.0f, 0.0f, 15.0f);
+				Vector MidPoint = ConnStart + ((ConnEnd - ConnStart) * 0.5f);
+				MidPoint.z = fmaxf(ConnStart.z, ConnEnd.z);
+
+
 				Vector ObjectCentre = (*stopIt).StopLocation;
 
 				if (vlineIntersectsAABB(ConnStart, MidPoint, ObjectCentre - HalfExtents, ObjectCentre + HalfExtents))
 				{
-					Object->AffectedConnections.push_back(&(*it));
+					stopIt->AffectedConnections.push_back(&(*it));
 					break;
 				}
 
 				if (vlineIntersectsAABB(MidPoint, ConnEnd, ObjectCentre - HalfExtents, ObjectCentre + HalfExtents))
 				{
-					Object->AffectedConnections.push_back(&(*it));
+					stopIt->AffectedConnections.push_back(&(*it));
 					break;
 				}
 			}
-
 		}
 	}	
 }
@@ -7154,20 +7155,39 @@ void NAV_PopulateAllConnectionsAffectedByDynamicObjects()
 
 void NAV_OnDynamicMapObjectBecomeIdle(DynamicMapObject* Object)
 {
+	// Object will not move again, so block off all connections permanently, and place null obstacles to block nav mesh
 	if (Object->Type == MAPOBJECT_STATIC)
 	{
 		NAV_ApplyTempObstaclesToObject(Object, DT_AREA_NULL);
+
+		int CurrStopIndex = (Object->NextStopIndex > 0) ? Object->NextStopIndex - 1 : Object->StopPoints.size() - 1;
+
+		for (auto it = Object->StopPoints[CurrStopIndex].AffectedConnections.begin(); it != Object->StopPoints[CurrStopIndex].AffectedConnections.end(); it++)
+		{
+			NavOffMeshConnection* ThisConnection = (*it);
+
+			NAV_ModifyOffMeshConnectionFlag(ThisConnection, NAV_FLAG_DISABLED);
+		}
+
+		return;
 	}
+
+	// Door is not permanently blocking anything and can still be activated. We need to do a more nuanced take on how connections are modified
 }
 
 void NAV_OnDynamicMapObjectStopIdle(DynamicMapObject* Object)
 {
-	for (auto it = Object->AffectedConnections.begin(); it != Object->AffectedConnections.end(); it++)
+	for (auto stopIt = Object->StopPoints.begin(); stopIt != Object->StopPoints.end(); stopIt++)
 	{
-		NavOffMeshConnection* ThisConnection = (*it);
+		for (auto it = stopIt->AffectedConnections.begin(); it != stopIt->AffectedConnections.end(); it++)
+		{
+			NavOffMeshConnection* ThisConnection = (*it);
 
-		NAV_ModifyOffMeshConnectionFlag(ThisConnection, ThisConnection->DefaultConnectionFlags);
+			NAV_ModifyOffMeshConnectionFlag(ThisConnection, ThisConnection->DefaultConnectionFlags);
+		}
 	}
+
+
 
 	for (auto it = Object->TempObstacles.begin(); it != Object->TempObstacles.end(); it++)
 	{

@@ -45,6 +45,7 @@ typedef struct _DYNAMIC_OBJECT_STOPPOINT
 	Vector StopLocation = ZERO_VECTOR;
 	bool bWaitForRetrigger = true;
 	float WaitTime = 0.0f;
+	std::vector<NavOffMeshConnection*> AffectedConnections;
 } DynamicMapObjectStop;
 
 typedef struct _DYNAMIC_MAP_OBJECT
@@ -55,7 +56,6 @@ typedef struct _DYNAMIC_MAP_OBJECT
 	DynamicMapObjectType Type = MAPOBJECT_STATIC;
 	std::vector<NavTempObstacle> TempObstacles; // Dynamic obstacle ref. Used to add/remove the obstacle as the door is opened/closed
 	std::vector<edict_t*> Triggers; // Reference to the trigger edicts (e.g. func_trigger, func_button etc.)
-	std::vector<NavOffMeshConnection*> AffectedConnections; // Which off-mesh connections are affected by this object (i.e. blocked/unblocked)
 	std::vector<DynamicMapObjectStop> StopPoints; // Where the object stops when triggered. Doors will always have two stop points (open and shut positions), trains could have many
 	int NextStopIndex = 0;
 	std::vector<edict_t*> Targets;

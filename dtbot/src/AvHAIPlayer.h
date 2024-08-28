@@ -53,7 +53,8 @@ void BotShootLocation(AvHAIPlayer* pBot, AIWeaponType AttackWeapon, const Vector
 void BotUpdateDesiredViewRotation(AvHAIPlayer* pBot);
 void BotUpdateViewRotation(AvHAIPlayer* pBot, float DeltaTime);
 void BotUpdateView(AvHAIPlayer* pBot);
-bool IsPlayerInBotFOV(AvHAIPlayer* Observer, edict_t* TargetPlayer);
+bool IsEntityInBotFOV(AvHAIPlayer* Observer, const edict_t* Entity);
+bool IsEntityVisibleToBot(AvHAIPlayer* pBot, const edict_t* Entity);
 void UpdateAIPlayerViewFrustum(AvHAIPlayer* pBot);
 
 // Find a point on the target player that is visible from the view of the observer. Checks head, centre and feet for visibility

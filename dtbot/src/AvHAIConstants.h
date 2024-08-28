@@ -21,7 +21,6 @@ static const float commander_action_cooldown = 1.0f;
 static const float min_request_spam_time = 10.0f;
 
 constexpr auto MAX_AI_PATH_SIZE = 512; // Maximum number of points allowed in a path (this should be enough for any sized map)
-static const int MAX_NAV_MESHES = 8; // Max number of nav meshes allowed. Currently 3 are used (one for building placement, one for the onos, and a regular one for everyone else)
 
 static const int MAX_PLAYERS = 32;
 
@@ -100,21 +99,23 @@ typedef enum
 
 typedef struct _OFF_MESH_CONN
 {
+	unsigned int NavMeshIndex = 0;
 	Vector FromLocation = ZERO_VECTOR; // The start point of the connection
 	Vector ToLocation = ZERO_VECTOR; // The end point of the connection
 	unsigned int ConnectionFlags = 0; // The type of connection it is
 	unsigned int DefaultConnectionFlags = 0; // If this connection is being temporarily modified, what it should normally be
-	unsigned int NavMeshesIndices[MAX_NAV_MESHES]; // References to this connection on all defined nav meshes
+	unsigned int ConnectionRef; // References to this connection on all defined nav meshes
 	edict_t* LinkedObject = nullptr;
 } NavOffMeshConnection;
 
 typedef struct _TEMPORARY_OBSTACLE
 {
+	unsigned int NavMeshIndex = 0;
 	Vector Location = ZERO_VECTOR; // The location of the obstacle. This will be at the BASE of the cylinder
 	float Radius = 0.0f; // How wide the cylindrical obstacle is
 	float Height = 0.0f; // How tall the cylinder is
-	unsigned char area = 0; // The area to mark on the nav mesh
-	unsigned int NavMeshesIndices[MAX_NAV_MESHES]; // References to this obstacle on all defined nav meshes for easy removal
+	unsigned char Area = 0; // The area to mark on the nav mesh
+	unsigned int ObstacleRef = 0; // References to this obstacle on all defined nav meshes for easy removal
 } NavTempObstacle;
 
 typedef struct _LOAD_NAV_HINT

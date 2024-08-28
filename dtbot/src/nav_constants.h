@@ -3,24 +3,29 @@
 #ifndef NAV_CONSTANTS_H
 #define NAV_CONSTANTS_H
 
+#define NAV_MESH_DEFAULT 0
+
+#define NUM_NAV_MESHES 1
+
 #include <vector>
 
 // Possible movement types. Defines the actions the bot needs to take to traverse this node
 enum NavMovementFlag
 {
 	NAV_FLAG_DISABLED = 1 << 31,		// Disabled
-	NAV_FLAG_WALK = 1,		// Walk
-	NAV_FLAG_CROUCH = 2,		// Crouch
-	NAV_FLAG_JUMP = 4,		// Jump
-	NAV_FLAG_LADDER = 8,		// Ladder
-	NAV_FLAG_FALL = 16,		// Fall
-	NAV_FLAG_PLATFORM = 32,		// Platform
+	NAV_FLAG_WALK = 1 << 0,		// Walk
+	NAV_FLAG_CROUCH = 1 << 1,		// Crouch
+	NAV_FLAG_JUMP = 1 << 2,		// Jump
+	NAV_FLAG_LADDER = 1 << 3,		// Ladder
+	NAV_FLAG_FALL = 1 << 4,		// Fall
+	NAV_FLAG_PLATFORM = 1 << 5,		// Platform
 	NAV_FLAG_ALL = -1		// All flags
 };
 
 // Area types. Defines the cost of movement through an area and which flag to use
 enum NavArea
 {
+	NAV_AREA_NULL = 0,		// Null area, cuts a hole in the mesh
 	NAV_AREA_UNWALKABLE = 60,		// Unwalkable
 	NAV_AREA_WALK = 1,		// Walk
 	NAV_AREA_CROUCH = 2,		// Crouch
@@ -33,6 +38,12 @@ enum NavProfileIndex
 {
 	NAV_PROFILE_PLAYER = 0,		// Base Player
 	NAV_PROFILE_DEFAULT = 1,		// Default profile which has all capabilities except disabled flags, and 1.0 area costs for everything 
+};
+
+// Profile indices. Use these when retrieving base agent profile information
+enum NavMeshIndex
+{
+	NAV_MESH_PLAYER = 0,		// Nav Mesh
 };
 
 // Agent profile definition. Holds all information an agent needs when querying the nav mesh
@@ -55,13 +66,13 @@ inline NavMovementFlag GetFlagForArea(NavArea Area)
 	case NAV_AREA_UNWALKABLE:
 		return NAV_FLAG_DISABLED;
 	case NAV_AREA_WALK:
-		return NAV_FLAG_WALK;
-	case NAV_AREA_CROUCH:
 		return NAV_FLAG_CROUCH;
-	case NAV_AREA_OBSTRUCTED:
+	case NAV_AREA_CROUCH:
 		return NAV_FLAG_JUMP;
+	case NAV_AREA_OBSTRUCTED:
+		return NAV_FLAG_LADDER;
 	case NAV_AREA_HAZARD:
-		return NAV_FLAG_WALK;
+		return NAV_FLAG_CROUCH;
 	default:
 		return NAV_FLAG_DISABLED;
 	}
@@ -72,6 +83,11 @@ inline void GetDebugColorForArea(NavArea Area, unsigned char& R, unsigned char& 
 {
 	switch (Area)
 	{
+	case NAV_AREA_NULL:
+		R = 128;
+		G = 128;
+		B = 128;
+		break;
 	case NAV_AREA_UNWALKABLE:
 		R = 10;
 		G = 10;
@@ -233,7 +249,8 @@ inline void PopulateBaseAgentProfiles()
 
 	NavAgentProfile DefaultProfile;
 	DefaultProfile.NavMeshIndex = 0;
-	DefaultProfile.Filters.setIncludeFlags(-1);
+	DefaultProfile.Filters.setIncludeFlags(0x7fffffff);
+	DefaultProfile.Filters.setExcludeFlags(NAV_FLAG_DISABLED);
 	DefaultProfile.Filters.setAreaCost(0, 1.0);
 	DefaultProfile.Filters.setAreaCost(1, 1.0);
 	DefaultProfile.Filters.setAreaCost(2, 1.0);

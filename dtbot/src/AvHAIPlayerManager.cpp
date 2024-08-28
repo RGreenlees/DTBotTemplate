@@ -31,6 +31,9 @@ extern int m_spriteTexture;
 Vector DebugVector1 = ZERO_VECTOR;
 Vector DebugVector2 = ZERO_VECTOR;
 
+int DisplayConnectionsMesh = -1;
+int DisplayTempObstaclesMesh = -1;
+
 AvHAIPlayer* DebugAIPlayer = nullptr;
 
 std::vector<bot_path_node> DebugPath;
@@ -297,6 +300,16 @@ void AIMGR_UpdateAISystem()
 			if (DebugObject)
 			{
 				DEBUG_PrintObjectInfo(DebugObject);
+			}
+
+			if (DisplayConnectionsMesh > -1)
+			{
+				AIDEBUG_DrawOffMeshConnections(DisplayConnectionsMesh);
+			}
+
+			if (DisplayTempObstaclesMesh > -1)
+			{
+				AIDEBUG_DrawTemporaryObstacles(DisplayTempObstaclesMesh);
 			}
 		}
 
@@ -869,6 +882,73 @@ void DTBot_ServerCommand(void)
 		if (FStrEq(arg2, "setdebugvector2"))
 		{
 			DebugVector2 = GetPlayerBottomOfCollisionHull(AIMGR_GetListenServerEdict());
+
+			return;
+		}
+
+		if (FStrEq(arg2, "drawoffmeshconnections"))
+		{
+			if (arg3 == NULL)
+			{
+				DisplayConnectionsMesh = -1;
+				return;
+			}
+
+			int MeshIndex = 0;
+			const char* MeshInput = CMD_ARGV(3);
+
+			if (MeshInput != NULL && isNumber(MeshInput))
+			{
+				MeshIndex = atoi(MeshInput);
+			}
+			else
+			{
+				DisplayConnectionsMesh = -1;
+				return;
+			}
+
+			if (MeshIndex > NUM_NAV_MESHES)
+			{
+				DisplayConnectionsMesh = -1;
+			}
+			else
+			{
+				DisplayConnectionsMesh = MeshIndex - 1;
+			}
+			
+
+			return;
+		}
+
+		if (FStrEq(arg2, "drawtempobstacles"))
+		{
+			if (arg3 == NULL)
+			{
+				DisplayTempObstaclesMesh = -1;
+				return;
+			}
+
+			int MeshIndex = 0;
+			const char* MeshInput = CMD_ARGV(3);
+
+			if (MeshInput != NULL && isNumber(MeshInput))
+			{
+				MeshIndex = atoi(MeshInput);
+			}
+			else
+			{
+				DisplayTempObstaclesMesh = -1;
+				return;
+			}
+
+			if (MeshIndex > NUM_NAV_MESHES)
+			{
+				DisplayTempObstaclesMesh = -1;
+			}
+			else
+			{
+				DisplayTempObstaclesMesh = MeshIndex - 1;
+			}
 
 			return;
 		}

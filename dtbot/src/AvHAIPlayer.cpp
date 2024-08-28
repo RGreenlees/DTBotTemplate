@@ -10,7 +10,7 @@
 #include "AvHAIPlayerManager.h"
 #include "AvHAIConfig.h"
 
-extern nav_mesh NavMeshes[MAX_NAV_MESHES]; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
+extern nav_mesh NavMeshes[NUM_NAV_MESHES]; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
 
 int fake_arg_count;
 extern char g_argv[1024];
@@ -870,7 +870,7 @@ void AIPlayerThink(AvHAIPlayer* pBot)
 		else
 		{
 			MoveTo(pBot, pBot->TestLocation, MOVESTYLE_NORMAL);
-			//AIDEBUG_DrawBotPath(pBot);
+			AIDEBUG_DrawBotPath(pBot);
 		}
 	}
 }

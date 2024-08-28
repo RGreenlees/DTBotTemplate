@@ -24,7 +24,7 @@
 #include <string.h>
 
 
-extern nav_mesh NavMeshes[MAX_NAV_MESHES]; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
+extern nav_mesh NavMeshes[NUM_NAV_MESHES]; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
 
 bool bNavMeshModified = false;
 extern bool bTileCacheUpToDate;
@@ -334,11 +334,11 @@ bool AITAC_AnyPlayerOnTeamWithLOS(int Team, const Vector& Location, float Search
 	return false;
 }
 
-Vector AITAC_GetRandomHintInLocation(const unsigned int HintFlags, const Vector SearchLocation, const float SearchRadius)
+Vector AITAC_GetRandomHintInLocation(unsigned int NavMeshIndex, const unsigned int HintFlags, const Vector SearchLocation, const float SearchRadius)
 {
 	Vector Result = ZERO_VECTOR;
 
-	std::vector<NavHint*> IPHints = NAV_GetHintsOfTypeInRadius(HintFlags, SearchLocation, SearchRadius);
+	std::vector<NavHint*> IPHints = NAV_GetHintsOfTypeInRadius(NavMeshIndex, HintFlags, SearchLocation, SearchRadius);
 	int WinningRoll = 0;
 
 	for (auto it = IPHints.begin(); it != IPHints.end(); it++)

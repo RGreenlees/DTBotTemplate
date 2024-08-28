@@ -7,7 +7,7 @@
 #include "AvHAITactical.h"
 #include "AvHAIPlayerManager.h"
 
-extern nav_mesh NavMeshes[MAX_NAV_MESHES]; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
+extern nav_mesh NavMeshes[NUM_NAV_MESHES]; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
 
 AIWeaponTypeDefinition WeaponList[32];
 AvHAIPlayerInventory PlayerInventories[32];

@@ -38,7 +38,7 @@ void						AITAC_CheckNavMeshModified();
 // Called when the nav mesh has been modified in some way (temp obstacle or off-mesh connection added/removed/modified), and is fully refreshed
 void AITAC_OnNavMeshModified();
 
-Vector						AITAC_GetRandomHintInLocation(const unsigned int HintFlags, const Vector SearchLocation, const float SearchRadius);
+Vector						AITAC_GetRandomHintInLocation(unsigned int NavMeshIndex, const unsigned int HintFlags, const Vector SearchLocation, const float SearchRadius);
 
 
 edict_t* AITAC_GetClosestPlayerOnTeamWithLOS(const int Team, const Vector& Location, float SearchRadius, edict_t* IgnorePlayer);

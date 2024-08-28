@@ -36,15 +36,11 @@ using namespace std;
 vector<DynamicMapPrototype> MapObjectPrototypes;
 vector<DynamicMapObject> DynamicMapObjects;
 
-vector<NavOffMeshConnection> BaseMapConnections; // Connections that came as part of the nav mesh
-
-nav_mesh NavMeshes[MAX_NAV_MESHES] = { }; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
+nav_mesh NavMeshes[NUM_NAV_MESHES] = { }; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
 
 vector<NavAgentProfile> BaseAgentProfiles;
 
 AvHAINavMeshStatus NavmeshStatus = NAVMESH_STATUS_PENDING;
-
-vector<NavHint> MapNavHints;
 
 extern bool bNavMeshModified;
 
@@ -208,133 +204,46 @@ struct MeshProcess : public dtTileCacheMeshProcess
 	}
 };
 
-void AIDEBUG_DrawTemporaryObstacles(float DrawTime)
+void AIDEBUG_DrawOffMeshConnections(unsigned int NavMeshIndex, float DrawTime)
 {
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(GetBaseNavProfile(PLAYER_BASE_NavAgentProfile));
-	const dtTileCache* m_tileCache = UTIL_GetTileCacheForProfile(GetBaseNavProfile(PLAYER_BASE_NavAgentProfile));
-
-	if (m_navMesh)
+	if (NavMeshes[NavMeshIndex].tileCache)
 	{
-		int NumObstacles = m_tileCache->getObstacleCount();
+		int DrawnConnections = 0;
 
-		for (int i = 0; i < NumObstacles; i++)
+		for (auto it = NavMeshes[NavMeshIndex].MeshConnections.begin(); it != NavMeshes[NavMeshIndex].MeshConnections.end(); it++)
 		{
-			const dtTileCacheObstacle* ObstacleRef = m_tileCache->getObstacle(i);
 
-			if (!ObstacleRef || ObstacleRef->state != DT_OBSTACLE_PROCESSED) { continue; }
+			unsigned char R, G, B;
+			GetDebugColorForFlag((NavMovementFlag)it->ConnectionFlags, R, G, B);
 
-			int r, g, b;
+			UTIL_DrawLine(INDEXENT(1), it->FromLocation, it->ToLocation, DrawTime, R, G, B);
+			DrawnConnections++;
 
-			
-
-			if (ObstacleRef->type == ObstacleType::DT_OBSTACLE_BOX)
-			{
-				switch (ObstacleRef->box.area)
-				{
-					case DT_TILECACHE_NULL_AREA:
-						r = 128;
-						g = 128;
-						b = 128;
-						break;
-					case DT_TILECACHE_CROUCH_AREA:
-						r = 128;
-						g = 0;
-						b = 0;
-						break;
-					case DT_TILECACHE_BLOCKED_AREA:
-						r = 255;
-						g = 255;
-						b = 0;
-						break;
-					case DT_TILECACHE_LADDER_AREA:
-						r = 0;
-						g = 0;
-						b = 255;
-						break;
-					case DT_TILECACHE_DOOR_AREA:
-						r = 0;
-						g = 128;
-						b = 128;
-						break;
-				}
-
-				Vector bMin = Vector(ObstacleRef->box.bmin[0], -ObstacleRef->box.bmin[2], ObstacleRef->box.bmin[1]);
-				Vector bMax = Vector(ObstacleRef->box.bmax[0], -ObstacleRef->box.bmax[2], ObstacleRef->box.bmax[1]);
-
-				UTIL_DrawBox(INDEXENT(1), bMin, bMax, DrawTime, r, g, b);
-				continue;
-			}
-
-			if (ObstacleRef->type == ObstacleType::DT_OBSTACLE_CYLINDER)
-			{
-				switch (ObstacleRef->cylinder.area)
-				{
-				case DT_TILECACHE_NULL_AREA:
-					r = 128;
-					g = 128;
-					b = 128;
-					break;
-				case DT_TILECACHE_CROUCH_AREA:
-					r = 128;
-					g = 0;
-					b = 0;
-					break;
-				case DT_TILECACHE_BLOCKED_AREA:
-					r = 255;
-					g = 255;
-					b = 0;
-					break;
-				case DT_TILECACHE_LADDER_AREA:
-					r = 0;
-					g = 0;
-					b = 255;
-					break;
-				case DT_TILECACHE_DOOR_AREA:
-					r = 0;
-					g = 128;
-					b = 128;
-					break;
-				}
-
-				float Radius = ObstacleRef->cylinder.radius;
-				float Height = ObstacleRef->cylinder.height;
-
-				// The location of obstacles in Recast are at the bottom of the shape, not the centre
-				Vector Centre = Vector(ObstacleRef->cylinder.pos[0], -ObstacleRef->cylinder.pos[2], ObstacleRef->cylinder.pos[1] + (Height * 0.5f));
-
-				if (vDist2DSq(INDEXENT(1)->v.origin, Centre) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { continue; }
-
-				Vector bMin = Centre - Vector(Radius, Radius, Height * 0.5f);
-				Vector bMax = Centre + Vector(Radius, Radius, (Height * 0.5f));
-
-				UTIL_DrawBox(INDEXENT(1), bMin, bMax, DrawTime, r, g, b);
-				continue;
-			}
-
+			if (DrawnConnections == 20) { break; }
 		}
 	}
 }
 
-void AIDEBUG_DrawOffMeshConnections(float DrawTime)
+void AIDEBUG_DrawTemporaryObstacles(unsigned int NavMeshIndex, float DrawTime)
 {
-	if (NavMeshes[REGULAR_NAV_MESH].tileCache)
+	if (NavMeshes[NavMeshIndex].tileCache)
 	{
-		for (int i = 0; i < NavMeshes[REGULAR_NAV_MESH].tileCache->getOffMeshCount(); i++)
+		int DrawnConnections = 0;
+
+		for (auto it = NavMeshes[NavMeshIndex].TempObstacles.begin(); it != NavMeshes[NavMeshIndex].TempObstacles.end(); it++)
 		{
-			const dtOffMeshConnection* con = NavMeshes[REGULAR_NAV_MESH].tileCache->getOffMeshConnection(i);
-
-			if (con->state == DT_OFFMESH_EMPTY || con->state == DT_OFFMESH_REMOVING) { continue; }
-
-			Vector StartLine = Vector(con->pos[0], -con->pos[2], con->pos[1]);
-			Vector EndLine = Vector(con->pos[3], -con->pos[5], con->pos[4]);
 
 			unsigned char R, G, B;
+			GetDebugColorForArea((NavArea)it->Area, R, G, B);
 
-			GetDebugColorForFlag((NavMovementFlag)con->flags, R, G, B);
+			Vector bMin = Vector(it->Location.x - it->Radius, it->Location.y - it->Radius, it->Location.z - (it->Height * 0.5f));
+			Vector bMax = Vector(it->Location.x + it->Radius, it->Location.y + it->Radius, it->Location.z + (it->Height * 0.5f));
 
-			UTIL_DrawLine(INDEXENT(1), StartLine, EndLine, DrawTime, R, G, B);
+			UTIL_DrawBox(INDEXENT(1), bMin, bMax, DrawTime, R, G, B);
+			DrawnConnections++;
+
+			if (DrawnConnections == 20) { break; }
 		}
-
 	}
 }
 
@@ -342,7 +251,7 @@ bool UTIL_UpdateTileCache()
 {
 	bool bNewTileCacheUpToDate = true;
 
-	for (int i = 0; i < MAX_NAV_MESHES; i++)
+	for (int i = 0; i < NUM_NAV_MESHES; i++)
 	{
 		if (NavMeshes[i].tileCache)
 		{
@@ -366,7 +275,7 @@ Vector UTIL_AdjustPointAwayFromNavWall(const Vector Location, const float MaxDis
 {
 
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(BaseAgentProfiles[0]);
-	const dtQueryFilter* m_navFilter = &BaseAgentProfiles[PLAYER_BASE_NavAgentProfile].Filters;
+	const dtQueryFilter* m_navFilter = &GetBaseAgentProfile(NAV_PROFILE_DEFAULT).Filters;
 
 	float Pos[3] = { Location.x, Location.z, -Location.y };
 
@@ -460,75 +369,51 @@ Vector UTIL_GetNearestPointOnNavWall(const NavAgentProfile &NavProfile, const Ve
 	return ZERO_VECTOR;
 }
 
-bool NAV_AddTemporaryObstacleToNavmesh(unsigned int NavMeshIndex, NavTempObstacle& ObstacleRef)
+NavTempObstacle* NAV_AddTemporaryObstacleToNavmesh(unsigned int NavMeshIndex, Vector Position, float Radius, float Height, unsigned char Area)
 {
-	if (vIsZero(ObstacleRef.Location) || ObstacleRef.Radius == 0.0f || ObstacleRef.Height == 0.0f) { return true; }
+	if (vIsZero(Position) || Radius == 0.0f || Height == 0.0f) { return nullptr; }
 
-	bool bSuccess = true;
-		
-	if (NavMeshes[NavMeshIndex].tileCache)
+	nav_mesh* ChosenMesh = &NavMeshes[NavMeshIndex];
+
+	if (ChosenMesh->tileCache)
 	{
-		float Pos[3] = { ObstacleRef.Location.x, ObstacleRef.Location.z - (ObstacleRef.Height * 0.5f), -ObstacleRef.Location.y };
+		// Convert to Detour coordinate system, and adjust so position is the centre of the obstacle rather than bottom
+		float Pos[3] = { Position.x, Position.z - (Height * 0.5f), -Position.y };
 
 		dtObstacleRef ObsRef = 0;
-		NavMeshes[NavMeshIndex].tileCache->addObstacle(Pos, ObstacleRef.Radius, ObstacleRef.Height, ObstacleRef.area, &ObsRef);
+		dtStatus status = NavMeshes[NavMeshIndex].tileCache->addObstacle(Pos, Radius, Height, Area, &ObsRef);
 
-		unsigned int ObstacleNum = (unsigned int)ObsRef;
+		if (dtStatusSucceed(status))
+		{
+			NavTempObstacle NewObstacle;
+			NewObstacle.NavMeshIndex = NavMeshIndex;
+			NewObstacle.Location = Position;
+			NewObstacle.Radius = Radius;
+			NewObstacle.Height = Height;
+			NewObstacle.Area = Area;
+			NewObstacle.ObstacleRef = (unsigned int)ObsRef;
 
-		ObstacleRef.NavMeshesIndices[NavMeshIndex] = ObstacleNum;
+			ChosenMesh->TempObstacles.push_back(NewObstacle);
 
-		bSuccess = ObstacleNum > 0;
+			return &(*prev(ChosenMesh->TempObstacles.end()));
+
+		}
 	}
 
-	return bSuccess;
+	return nullptr;
 }
 
-bool NAV_AddTemporaryObstacleToAllNavmeshes(NavTempObstacle& ObstacleRef)
+bool NAV_RemoveTemporaryObstacleFromNavmesh(NavTempObstacle& ObstacleToRemove)
 {
-	if (vIsZero(ObstacleRef.Location) || ObstacleRef.Radius == 0.0f || ObstacleRef.Height == 0.0f) { return true; }
+	if (ObstacleToRemove.NavMeshIndex >= NUM_NAV_MESHES) { return true; }
 
-	bool bSuccess = false;
+	nav_mesh* ChosenMesh = &NavMeshes[ObstacleToRemove.NavMeshIndex];
 
-	for (int i = 0; i < MAX_NAV_MESHES; i++)
-	{
-		ObstacleRef.NavMeshesIndices[i] = 0;
+	if (!ChosenMesh->tileCache) { return true; }
 
-		bool bThisSuccess = NAV_AddTemporaryObstacleToNavmesh(i, ObstacleRef);
-	}
+	dtStatus status = ChosenMesh->tileCache->removeObstacle(ObstacleToRemove.ObstacleRef);
 
-	return bSuccess;
-}
-
-bool NAV_RemoveTemporaryObstacleFromNavmesh(unsigned int NavMeshIndex, NavTempObstacle& ObstacleRef)
-{
-	if (NavMeshIndex >= MAX_NAV_MESHES || !NavMeshes[NavMeshIndex].tileCache || ObstacleRef.NavMeshesIndices[NavMeshIndex] == 0) { return true; }
-
-	dtObstacleRef ObsRef = ObstacleRef.NavMeshesIndices[NavMeshIndex];
-
-	dtStatus RemovalStatus = NavMeshes[NavMeshIndex].tileCache->removeObstacle(ObsRef);
-
-	if (dtStatusSucceed(RemovalStatus))
-	{
-		ObstacleRef.NavMeshesIndices[NavMeshIndex] = 0;
-		return true;
-	}
-
-	return false;
-}
-
-bool NAV_RemoveTemporaryObstacleFromAllNavmeshes(NavTempObstacle& ObstacleRef)
-{
-
-	bool bSuccess = true;
-
-	for (int i = 0; i < MAX_NAV_MESHES; i++)
-	{
-		bool bThisSuccess = NAV_RemoveTemporaryObstacleFromNavmesh(i, ObstacleRef);
-
-		if (!bThisSuccess) { bSuccess = false; }
-	}
-
-	return bSuccess;
+	return dtStatusSucceed(status);
 }
 
 void GetFullFilePath(char* buffer, const char* mapname)
@@ -571,7 +456,7 @@ void ReloadNavMeshes()
 
 void UnloadNavMeshes()
 {
-	for (int i = 0; i < MAX_NAV_MESHES; i++)
+	for (int i = 0; i < NUM_NAV_MESHES; i++)
 	{
 		if (NavMeshes[i].navMesh)
 		{
@@ -590,10 +475,10 @@ void UnloadNavMeshes()
 			dtFreeTileCache(NavMeshes[i].tileCache);
 			NavMeshes[i].tileCache = nullptr;
 		}
+		
+		NavMeshes[i].MeshConnections.clear();
+		NavMeshes[i].MeshHints.clear();
 	}
-
-	BaseMapConnections.clear();
-	MapNavHints.clear();
 
 	NavmeshStatus = NAVMESH_STATUS_PENDING;
 }
@@ -824,20 +709,6 @@ bool LoadNavMesh(const char* mapname)
 	g_engfuncs.pfnServerPrint(SuccMsg);
 
 	return true;
-}
-
-void OnOffMeshConnectionAdded(dtOffMeshConnection* NewConnection)
-{
-	for (int i = 0; i <= BUILDING_NAV_MESH; i++)
-	{
-		if (NavMeshes[i].navMesh && NavMeshes[i].tileCache)
-		{
-			NavMeshes[i].navMesh->LinkOffMeshConnectionToTiles(NewConnection);
-
-			dtCompressedTile* ModifiedTile = NavMeshes[i].tileCache->getTileAt(NewConnection->FromTileX, NewConnection->FromTileY, NewConnection->FromTileLayer);
-			NavMeshes[i].tileCache->buildNavMeshTile(NavMeshes[i].tileCache->getTileRef(ModifiedTile), NavMeshes[i].navMesh);
-		}
-	}
 }
 
 bool loadNavigationData(const char* mapname)
@@ -1617,13 +1488,13 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 
 	if (LiftReference)
 	{
-		LiftEnd = NAV_GetNearestPlatformDisembarkPoint(pBot->Edict, LiftReference);
+		LiftEnd = NAV_GetNearestPlatformDisembarkPoint(pBot->BotNavInfo.NavProfile, pBot->Edict, LiftReference);
 
 		if (!vIsZero(LiftEnd))
 		{
 			FromLocation = LiftEnd;
 
-			NavOffMeshConnection* LiftOffMesh = UTIL_GetOffMeshConnectionForLift(LiftReference);
+			NavOffMeshConnection* LiftOffMesh = UTIL_GetOffMeshConnectionForPlatform(pBot->BotNavInfo.NavProfile, LiftReference);
 
 			if (LiftOffMesh)
 			{
@@ -1749,7 +1620,7 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 
 		if (CurrFlags == NAV_FLAG_PLATFORM)
 		{
-			DynamicMapObject* PlatformRef = UTIL_GetClosestLiftToPoints(NextPathNode.FromLocation, NextPathNode.Location);
+			DynamicMapObject* PlatformRef = UTIL_GetClosestPlatformToPoints(NextPathNode.FromLocation, NextPathNode.Location);
 
 			if (PlatformRef)
 			{
@@ -1798,14 +1669,17 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 	return DT_SUCCESS;
 }
 
-Vector NAV_GetNearestPlatformDisembarkPoint(edict_t* Rider, DynamicMapObject* LiftReference)
+Vector NAV_GetNearestPlatformDisembarkPoint(const NavAgentProfile& NavProfile, edict_t* Rider, DynamicMapObject* LiftReference)
 {
 	if (!LiftReference) { return ZERO_VECTOR; }
 
 	NavOffMeshConnection* NearestConnection = nullptr;
 	float MinDist = 0.0f;
 
-	for (auto it = BaseMapConnections.begin(); it != BaseMapConnections.end(); it++)
+	nav_mesh ChosenNavMesh = NavMeshes[NavProfile.NavMeshIndex];
+
+
+	for (auto it = ChosenNavMesh.MeshConnections.begin(); it != ChosenNavMesh.MeshConnections.end(); it++)
 	{
 		if (!(it->ConnectionFlags & NAV_FLAG_PLATFORM)) { continue; }
 
@@ -1888,29 +1762,24 @@ DynamicMapObject* UTIL_GetLiftReferenceByEdict(const edict_t* SearchEdict)
 	for (auto it = DynamicMapObjects.begin(); it != DynamicMapObjects.end(); it++)
 	{
 		if (it->Edict == SearchEdict)
-		{
-			if (UTIL_GetOffMeshConnectionForLift(&(*it)) != nullptr)
-			{
-				return &(*it);
-			}
-			else
-			{
-				return nullptr;
-			}
+		{			
+			return &(*it);
 		}
 	}
 
 	return nullptr;
 }
 
-NavOffMeshConnection* UTIL_GetOffMeshConnectionForLift(DynamicMapObject* LiftRef)
+NavOffMeshConnection* UTIL_GetOffMeshConnectionForPlatform(const NavAgentProfile& NavProfile, DynamicMapObject* LiftRef)
 {
 	if (!LiftRef) { return nullptr; }
 
 	NavOffMeshConnection* NearestConnection = nullptr;
 	float MinDist = 0.0f;
 
-	for (auto it = BaseMapConnections.begin(); it != BaseMapConnections.end(); it++)
+	nav_mesh ChosenNavMesh = NavMeshes[NavProfile.NavMeshIndex];
+
+	for (auto it = ChosenNavMesh.MeshConnections.begin(); it != ChosenNavMesh.MeshConnections.end(); it++)
 	{
 		if (!(it->ConnectionFlags & NAV_FLAG_PLATFORM)) { continue; }
 
@@ -2489,7 +2358,7 @@ DynamicMapObject* UTIL_GetNearestObjectTrigger(const Vector Location, DynamicMap
 		{
 			Vector ButtonLocation = UTIL_GetButtonFloorLocation(Location, ThisTrigger->Edict);
 
-			if ((!bCheckBlockedByDoor || !UTIL_IsPathBlockedByObject(Location, ButtonLocation, Object)) && UTIL_PointIsReachable(GetBaseNavProfile(PLAYER_BASE_NavAgentProfile), Location, ButtonLocation, 64.0f))
+			if ((!bCheckBlockedByDoor || !UTIL_IsPathBlockedByObject(Location, ButtonLocation, Object)) && UTIL_PointIsReachable(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), Location, ButtonLocation, 64.0f))
 			{
 				float ThisDist = vDist3DSq(Location, ButtonLocation);
 
@@ -3158,13 +3027,15 @@ void NAV_ForceActivateTrigger(AvHAIPlayer* pBot, DynamicMapObject* TriggerRef)
 	}
 }
 
-NavOffMeshConnection* NAV_GetNearestOffMeshConnectionToPoint(const Vector SearchPoint, NavMovementFlag SearchFlags)
+NavOffMeshConnection* NAV_GetNearestOffMeshConnectionToPoint(const NavAgentProfile& Profile, const Vector SearchPoint, NavMovementFlag SearchFlags)
 {
 	NavOffMeshConnection* Result = nullptr;
 
 	float MinDist = FLT_MAX;
 
-	for (auto it = BaseMapConnections.begin(); it != BaseMapConnections.end(); it++)
+	nav_mesh ChosenNavMesh = NavMeshes[Profile.NavMeshIndex];
+
+	for (auto it = ChosenNavMesh.MeshConnections.begin(); it != ChosenNavMesh.MeshConnections.end(); it++)
 	{
 		if (!(SearchFlags & it->ConnectionFlags)) { continue; }
 
@@ -3287,7 +3158,7 @@ void RidePlatformMove(AvHAIPlayer* pBot, DynamicMapObject* Lift, const DynamicMa
 
 	if (bLiftHasReachedDestination)
 	{
-		Vector DisembarkPoint = NAV_GetNearestPlatformDisembarkPoint(pBot->Edict, Lift);
+		Vector DisembarkPoint = NAV_GetNearestPlatformDisembarkPoint(pBot->BotNavInfo.NavProfile, pBot->Edict, Lift);
 
 		MoveToWithoutNav(pBot, DisembarkPoint);
 		return;
@@ -3335,7 +3206,7 @@ void RidePlatformMove(AvHAIPlayer* pBot, DynamicMapObject* Lift, const DynamicMa
 		}
 		else
 		{
-			Vector DisembarkPoint = NAV_GetNearestPlatformDisembarkPoint(pBot->Edict, Lift);
+			Vector DisembarkPoint = NAV_GetNearestPlatformDisembarkPoint(pBot->BotNavInfo.NavProfile, pBot->Edict, Lift);
 			if (!vIsZero(DisembarkPoint))
 			{
 				MoveToWithoutNav(pBot, DisembarkPoint);
@@ -3388,7 +3259,7 @@ bool NAV_CanBoardPlatform(AvHAIPlayer* pBot, DynamicMapObject* Platform, Vector 
 	Vector ClosestCurrentPoint = UTIL_GetClosestPointOnEntityToLocation(BoardingPoint, Platform->Edict);
 	ClosestCurrentPoint.z = BoardingPoint.z;
 
-	NavAgentProfile CheckProfile = (pBot) ? pBot->BotNavInfo.NavProfile : GetBaseNavProfile(PLAYER_BASE_NavAgentProfile);
+	NavAgentProfile CheckProfile = (pBot) ? pBot->BotNavInfo.NavProfile : GetBaseAgentProfile(NAV_PROFILE_DEFAULT);
 
 	Vector ProjectedLocation = UTIL_ProjectPointToNavmesh(ClosestCurrentPoint, Vector(Dist, Dist, 50.0f), CheckProfile);
 
@@ -3406,7 +3277,7 @@ void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPo
 	
 	if (!Platform)
 	{
-		Platform = UTIL_GetClosestLiftToPoints(StartPoint, EndPoint);
+		Platform = UTIL_GetClosestPlatformToPoints(StartPoint, EndPoint);
 	}
 
 	if (!Platform)
@@ -3861,21 +3732,21 @@ bool UTIL_PointIsDirectlyReachable(const AvHAIPlayer* pBot, const Vector start, 
 
 const dtNavMesh* UTIL_GetNavMeshForProfile(const NavAgentProfile& NavProfile)
 {
-	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= MAX_NAV_MESHES) { return nullptr; }
+	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= NUM_NAV_MESHES) { return nullptr; }
 
 	return NavMeshes[NavProfile.NavMeshIndex].navMesh;
 }
 
 const dtNavMeshQuery* UTIL_GetNavMeshQueryForProfile(const NavAgentProfile& NavProfile)
 {
-	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= MAX_NAV_MESHES) { return nullptr; }
+	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= NUM_NAV_MESHES) { return nullptr; }
 
 	return NavMeshes[NavProfile.NavMeshIndex].navQuery;
 }
 
 const dtTileCache* UTIL_GetTileCacheForProfile(const NavAgentProfile& NavProfile)
 {
-	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= MAX_NAV_MESHES) { return nullptr; }
+	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= NUM_NAV_MESHES) { return nullptr; }
 
 	return NavMeshes[NavProfile.NavMeshIndex].tileCache;
 }
@@ -4600,7 +4471,7 @@ void SetBaseNavProfile(AvHAIPlayer* pBot)
 
 void UpdateBotMoveProfile(AvHAIPlayer* pBot, BotMoveStyle MoveStyle)
 {	
-	pBot->BotNavInfo.NavProfile = GetBaseNavProfile(PLAYER_BASE_NavAgentProfile);
+	pBot->BotNavInfo.NavProfile = GetBaseAgentProfile(NAV_PROFILE_PLAYER);
 }
 
 bool NAV_GenerateNewBasePath(AvHAIPlayer* pBot, const Vector NewDestination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist)
@@ -6327,38 +6198,7 @@ Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdi
 	return NewButtonAccessPoint;
 }
 
-bool UTIL_IsTriggerLinkedToDoor(edict_t* TriggerEntity, vector<edict_t*>& CheckedTriggers, edict_t* Door)
-{
-	if (!TriggerEntity || !Door) { return false; }
-
-	if (TriggerEntity == Door) { return true; }
-
-	CheckedTriggers.push_back(TriggerEntity);
-
-	const char* DoorName = STRING(Door->v.targetname);
-	const char* TriggerName = STRING(TriggerEntity->v.targetname);
-	const char* TriggerTarget = STRING(TriggerEntity->v.target);
-
-	if (FStrEq(STRING(TriggerEntity->v.target), DoorName)) { return true; }
-
-	DynamicMapObject* TriggerRef = NAV_GetTriggerByEdict(TriggerEntity);
-
-	if (!TriggerRef) { return false; }
-
-	for (auto it = TriggerRef->Targets.begin(); it != TriggerRef->Targets.end(); it++)
-	{
-		edict_t* TargetEdict = (*it);
-
-		if (FNullEnt(TargetEdict) || TargetEdict == TriggerEntity || find(CheckedTriggers.begin(), CheckedTriggers.end(), TargetEdict) != CheckedTriggers.end()) { continue; }
-
-		if (UTIL_IsTriggerLinkedToDoor(TargetEdict, CheckedTriggers, Door)) { return true; }
-
-	}
-
-	return false;
-}
-
-void UTIL_PopulateConnectionsAffectedByObject(DynamicMapObject* Object)
+void NAV_PopulateConnectionsAffectedByDynamicObject(DynamicMapObject* Object)
 {
 	Object->AffectedConnections.clear();
 
@@ -6367,31 +6207,36 @@ void UTIL_PopulateConnectionsAffectedByObject(DynamicMapObject* Object)
 	HalfExtents.y += 16.0f;
 	HalfExtents.z += 16.0f;
 
-	for (auto it = BaseMapConnections.begin(); it != BaseMapConnections.end(); it++)
+	for (int i = 0; i < NUM_NAV_MESHES; i++)
 	{
-		Vector ConnStart = it->FromLocation + Vector(0.0f, 0.0f, 15.0f);
-		Vector ConnEnd = it->ToLocation + Vector(0.0f, 0.0f, 15.0f);
-		Vector MidPoint = ConnStart + ((ConnEnd - ConnStart) * 0.5f);
-		MidPoint.z = fmaxf(ConnStart.z, ConnEnd.z);
+		if (!NavMeshes[i].tileCache) { continue; }
 
-		for (auto stopIt = Object->StopPoints.begin(); stopIt != Object->StopPoints.end(); stopIt++)
+		for (auto it = NavMeshes[i].MeshConnections.begin(); it != NavMeshes[i].MeshConnections.end(); it++)
 		{
-			Vector ObjectCentre = (*stopIt).StopLocation;
+			Vector ConnStart = it->FromLocation + Vector(0.0f, 0.0f, 15.0f);
+			Vector ConnEnd = it->ToLocation + Vector(0.0f, 0.0f, 15.0f);
+			Vector MidPoint = ConnStart + ((ConnEnd - ConnStart) * 0.5f);
+			MidPoint.z = fmaxf(ConnStart.z, ConnEnd.z);
 
-			if (vlineIntersectsAABB(ConnStart, MidPoint, ObjectCentre - HalfExtents, ObjectCentre + HalfExtents))
+			for (auto stopIt = Object->StopPoints.begin(); stopIt != Object->StopPoints.end(); stopIt++)
 			{
-				Object->AffectedConnections.push_back(&(*it));
-				break;
+				Vector ObjectCentre = (*stopIt).StopLocation;
+
+				if (vlineIntersectsAABB(ConnStart, MidPoint, ObjectCentre - HalfExtents, ObjectCentre + HalfExtents))
+				{
+					Object->AffectedConnections.push_back(&(*it));
+					break;
+				}
+
+				if (vlineIntersectsAABB(MidPoint, ConnEnd, ObjectCentre - HalfExtents, ObjectCentre + HalfExtents))
+				{
+					Object->AffectedConnections.push_back(&(*it));
+					break;
+				}
 			}
 
-			if (vlineIntersectsAABB(MidPoint, ConnEnd, ObjectCentre - HalfExtents, ObjectCentre + HalfExtents))
-			{
-				Object->AffectedConnections.push_back(&(*it));
-				break;
-			}
 		}
-
-	}
+	}	
 }
 
 void NAV_ModifyOffMeshConnectionFlag(NavOffMeshConnection* Connection, const unsigned int NewFlag)
@@ -6400,12 +6245,9 @@ void NAV_ModifyOffMeshConnectionFlag(NavOffMeshConnection* Connection, const uns
 
 	Connection->ConnectionFlags = NewFlag;
 
-	for (int i = 0; i < BUILDING_NAV_MESH; i++)
+	if (NavMeshes[Connection->NavMeshIndex].tileCache && Connection->ConnectionRef)
 	{
-		if (NavMeshes[i].tileCache && Connection->NavMeshesIndices[i])
-		{
-			NavMeshes[i].tileCache->modifyOffMeshConnection(Connection->NavMeshesIndices[i], NewFlag);
-		}
+		NavMeshes[Connection->NavMeshIndex].tileCache->modifyOffMeshConnection(Connection->ConnectionRef, NewFlag);
 	}
 }
 
@@ -6415,7 +6257,7 @@ void NAV_ApplyTempObstaclesToObject(DynamicMapObject* Object, const int Area)
 
 	for (auto ObsIt = Object->TempObstacles.begin(); ObsIt != Object->TempObstacles.begin(); ObsIt++)
 	{
-		NAV_RemoveTemporaryObstacleFromAllNavmeshes((*ObsIt));
+		NAV_RemoveTemporaryObstacleFromNavmesh(*ObsIt);
 	}
 
 	Object->TempObstacles.clear();
@@ -6456,15 +6298,15 @@ void NAV_ApplyTempObstaclesToObject(DynamicMapObject* Object, const int Area)
 
 	for (int ii = 0; ii < NumObstacles; ii++)
 	{
-		NavTempObstacle NewObstacle;
-		NewObstacle.Location = CurrentPoint;
-		NewObstacle.Height = SizeZ;
-		NewObstacle.Radius = CylinderRadius;
-		NewObstacle.area = Area;
+		for (int NavIndex = 0; NavIndex < NUM_NAV_MESHES; NavIndex++)
+		{
+			NavTempObstacle* NewObstacle = NAV_AddTemporaryObstacleToNavmesh(NavIndex, CurrentPoint, CylinderRadius, SizeZ, Area);
 
-		NAV_AddTemporaryObstacleToAllNavmeshes(NewObstacle);
-
-		Object->TempObstacles.push_back(NewObstacle);
+			if (NewObstacle)
+			{
+				Object->TempObstacles.push_back(*NewObstacle);
+			}
+		}
 
 		if (bUseXAxis)
 		{
@@ -6486,7 +6328,7 @@ void NAV_ClearDynamicMapData(bool bOnMapLoad)
 		{
 			for (auto ObsIt = it->TempObstacles.begin(); ObsIt != it->TempObstacles.end(); ObsIt++)
 			{
-				NAV_RemoveTemporaryObstacleFromAllNavmeshes(*ObsIt);
+				NAV_RemoveTemporaryObstacleFromNavmesh(*ObsIt);
 			}
 
 			it->TempObstacles.clear();
@@ -6582,7 +6424,7 @@ DynamicMapObject* UTIL_GetDynamicObjectByEdict(const edict_t* SearchEdict)
 }
 
 // TODO: Find the topmost point when open, and topmost point when closed, and see how closely they align to the top and bottom point parameters
-DynamicMapObject* UTIL_GetClosestLiftToPoints(const Vector StartPoint, const Vector EndPoint)
+DynamicMapObject* UTIL_GetClosestPlatformToPoints(const Vector StartPoint, const Vector EndPoint)
 {
 	DynamicMapObject* Result = nullptr;
 
@@ -6616,7 +6458,7 @@ DynamicMapObject* UTIL_GetClosestLiftToPoints(const Vector StartPoint, const Vec
 
 NavOffMeshConnection* NAV_AddOffMeshConnectionToNavmesh(unsigned int NavMeshIndex, Vector StartLoc, Vector EndLoc, unsigned char area, unsigned int flags, bool bBiDirectional)
 {
-	if (NavMeshIndex >= MAX_NAV_MESHES || !NavMeshes[NavMeshIndex].tileCache) { return nullptr; }
+	if (NavMeshIndex >= NUM_NAV_MESHES || !NavMeshes[NavMeshIndex].tileCache) { return nullptr; }
 
 	Vector ProjectedStart = UTIL_ProjectPointToNavmesh(StartLoc, NavMeshIndex);
 	Vector ProjectedEnd = UTIL_ProjectPointToNavmesh(EndLoc, NavMeshIndex);
@@ -6624,6 +6466,7 @@ NavOffMeshConnection* NAV_AddOffMeshConnectionToNavmesh(unsigned int NavMeshInde
 	if (vIsZero(ProjectedStart) || vIsZero(ProjectedEnd)) { return nullptr; }
 
 	NavOffMeshConnection NewConnectionDef;
+	NewConnectionDef.NavMeshIndex = NavMeshIndex;
 	NewConnectionDef.FromLocation = ProjectedStart;
 	NewConnectionDef.ToLocation = ProjectedEnd;
 	NewConnectionDef.DefaultConnectionFlags = flags;
@@ -6635,13 +6478,13 @@ NavOffMeshConnection* NAV_AddOffMeshConnectionToNavmesh(unsigned int NavMeshInde
 	ProjectedEnd = Vector(ProjectedEnd.x, ProjectedEnd.z, -ProjectedEnd.y);
 
 	dtOffMeshConnectionRef ref = 0;
-	NewConnectionDef.NavMeshesIndices[NavMeshIndex] = 0;
+	NewConnectionDef.ConnectionRef = 0;
 
 	dtStatus AddStatus = NavMeshes[NavMeshIndex].tileCache->addOffMeshConnection(ProjectedStart, ProjectedEnd, 18.0f, area, flags, bBiDirectional, &ref);
 
 	if (dtStatusSucceed(AddStatus))
 	{
-		NewConnectionDef.NavMeshesIndices[NavMeshIndex] = (unsigned int)ref;
+		NewConnectionDef.ConnectionRef = (unsigned int)ref;
 
 		NavMeshes[NavMeshIndex].MeshConnections.push_back(NewConnectionDef);
 
@@ -6655,7 +6498,7 @@ bool NAV_AddOffMeshConnectionToAllNavmeshes(Vector StartLoc, Vector EndLoc, unsi
 {
 	bool bSuccess = true;
 
-	for (int i = 0; i < MAX_NAV_MESHES; i++)
+	for (int i = 0; i < NUM_NAV_MESHES; i++)
 	{
 		NavOffMeshConnection* NewConnection = NAV_AddOffMeshConnectionToNavmesh(i, StartLoc, EndLoc, area, flags, bBiDirectional);
 
@@ -6667,7 +6510,7 @@ bool NAV_AddOffMeshConnectionToAllNavmeshes(Vector StartLoc, Vector EndLoc, unsi
 
 NavHint* NAV_AddHintToNavmesh(unsigned int NavMeshIndex, Vector Location, unsigned int HintFlags)
 {
-	if (NavMeshIndex >= MAX_NAV_MESHES || !NavMeshes[NavMeshIndex].tileCache) { return nullptr; }
+	if (NavMeshIndex >= NUM_NAV_MESHES || !NavMeshes[NavMeshIndex].tileCache) { return nullptr; }
 
 	NavHint NewHint;
 	NewHint.Position = Location;
@@ -6678,48 +6521,39 @@ NavHint* NAV_AddHintToNavmesh(unsigned int NavMeshIndex, Vector Location, unsign
 	return &(*prev(NavMeshes[NavMeshIndex].MeshHints.end()));
 }
 
-bool NAV_RemoveOffMeshConnectionFromAllNavmeshes(NavOffMeshConnection& RemoveConnectionDef)
+bool NAV_RemoveOffMeshConnection(NavOffMeshConnection& RemoveConnectionDef)
 {
-	bool bSuccess = true;
+	if (RemoveConnectionDef.NavMeshIndex < 0 || RemoveConnectionDef.NavMeshIndex >= NUM_NAV_MESHES) { return false; }
 
-	for (int i = 0; i < MAX_NAV_MESHES; i++)
+	if (!NavMeshes[RemoveConnectionDef.NavMeshIndex].tileCache) { return false; }
+
+	dtStatus RemoveStatus = NavMeshes[RemoveConnectionDef.NavMeshIndex].tileCache->removeOffMeshConnection(RemoveConnectionDef.ConnectionRef);
+
+	if (dtStatusSucceed(RemoveStatus))
 	{
-		if (!NavMeshes[i].tileCache) { continue; }
-
-		dtStatus RemoveStatus = NavMeshes[i].tileCache->removeOffMeshConnection(RemoveConnectionDef.NavMeshesIndices[i]);
-
-		if (dtStatusSucceed(RemoveStatus))
-		{
-			RemoveConnectionDef.NavMeshesIndices[i] = 0;
-		}
-		else
-		{
-			bSuccess = false;
-		}
+		RemoveConnectionDef.ConnectionRef = 0;
+		return true;
 	}
-
-	return bSuccess;
-}
-
-const NavAgentProfile GetBaseNavProfile(const int index)
-{
-	return BaseAgentProfiles[index];
+	else
+	{
+		return false;
+	}
 }
 
 const dtOffMeshConnection* DEBUG_FindNearestOffMeshConnectionToPoint(const Vector Point, unsigned int FilterFlags)
 {
 	const dtOffMeshConnection* Result = nullptr;
 
-	if (NavMeshes[REGULAR_NAV_MESH].tileCache)
+	if (NavMeshes[NAV_MESH_DEFAULT].tileCache)
 	{
 		float PointConverted[3] = { Point.x, Point.z, -Point.y };
 
 		float minDist = 0.0f;
 		
 
-		for (int i = 0; i < NavMeshes[REGULAR_NAV_MESH].tileCache->getOffMeshCount(); i++)
+		for (int i = 0; i < NavMeshes[NAV_MESH_DEFAULT].tileCache->getOffMeshCount(); i++)
 		{
-			const dtOffMeshConnection* con = NavMeshes[REGULAR_NAV_MESH].tileCache->getOffMeshConnection(i);
+			const dtOffMeshConnection* con = NavMeshes[NAV_MESH_DEFAULT].tileCache->getOffMeshConnection(i);
 
 			if (!con || con->state == DT_OFFMESH_EMPTY || con->state == DT_OFFMESH_REMOVING || !(con->flags & FilterFlags)) { continue; }
 
@@ -7047,13 +6881,13 @@ void NAV_SetPickupMovementTask(AvHAIPlayer* pBot, edict_t* ThingToPickup, Dynami
 	MoveTask->TaskLocation = ThingToPickup->v.origin;
 }
 
-vector<NavHint*> NAV_GetHintsOfType(unsigned int HintType)
+vector<NavHint*> NAV_GetHintsOfType(unsigned int NavMeshIndex, unsigned int HintType)
 {
 	vector<NavHint*> Result;
 
 	Result.clear();
 
-	for (auto it = MapNavHints.begin(); it != MapNavHints.end(); it++)
+	for (auto it = NavMeshes[NavMeshIndex].MeshHints.begin(); it != NavMeshes[NavMeshIndex].MeshHints.end(); it++)
 	{
 		if (HintType != 0 && !(it->hintType & HintType)) { continue; }
 
@@ -7064,15 +6898,16 @@ vector<NavHint*> NAV_GetHintsOfType(unsigned int HintType)
 
 }
 
-vector<NavHint*> NAV_GetHintsOfTypeInRadius(unsigned int HintType, Vector SearchLocation, float Radius)
+vector<NavHint*> NAV_GetHintsOfTypeInRadius(unsigned int NavMeshIndex, unsigned int HintType, Vector SearchLocation, float Radius)
 {
 	vector<NavHint*> Result;
-
 	Result.clear();
+
+	if (NavMeshIndex >= NUM_NAV_MESHES) { return Result; }
 
 	float SearchRadius = sqrf(Radius);
 
-	for (auto it = MapNavHints.begin(); it != MapNavHints.end(); it++)
+	for (auto it = NavMeshes[NavMeshIndex].MeshHints.begin(); it != NavMeshes[NavMeshIndex].MeshHints.end(); it++)
 	{
 		if (HintType != 0 && !(it->hintType & HintType)) { continue; }
 
@@ -7090,7 +6925,6 @@ void NAV_ClearCachedMapData()
 {
 	MapObjectPrototypes.clear();
 	DynamicMapObjects.clear();
-	BaseMapConnections.clear();
 }
 
 void NAV_AddDynamicMapObject(DynamicMapPrototype* Prototype)
@@ -7172,7 +7006,9 @@ void NAV_AddDynamicMapObject(DynamicMapPrototype* Prototype)
 		DynamicMapObjectStop SecondStop;
 		SecondStop.StopLocation = OpenPosition;
 		SecondStop.WaitTime = Prototype->Wait;
-		SecondStop.bWaitForRetrigger = (ObjectEdict->v.spawnflags & SF_DOOR_NO_AUTO_RETURN);
+		SecondStop.bWaitForRetrigger = ((ObjectEdict->v.spawnflags & SF_DOOR_NO_AUTO_RETURN) || Prototype->Wait < 0.0f);
+
+		NewObject.bToggleActive = (ObjectEdict->v.spawnflags & SF_DOOR_NO_AUTO_RETURN);
 
 		NewObject.StopPoints.push_back(SecondStop);
 	}
@@ -7255,6 +7091,7 @@ void NAV_PopulateDynamicMapObjects()
 	NAV_LinkDynamicMapObjectsToTriggers();
 	NAV_LinkDynamicMapObjectsToOffmeshConnections();
 	NAV_SetTrainStartPoints();
+	NAV_PopulateAllConnectionsAffectedByDynamicObjects();
 }
 
 void NAV_SetTrainStartPoints()
@@ -7290,18 +7127,54 @@ void NAV_SetTrainStartPoints()
 
 void NAV_LinkDynamicMapObjectsToOffmeshConnections()
 {
-	for (auto it = BaseMapConnections.begin(); it != BaseMapConnections.end(); it++)
+	for (int i = 0; i < NUM_NAV_MESHES; i++)
 	{
-		if (it->DefaultConnectionFlags & NAV_FLAG_PLATFORM)
+		for (auto it = NavMeshes[i].MeshConnections.begin(); it != NavMeshes[i].MeshConnections.end(); it++)
 		{
-			DynamicMapObject* NearestPlatform = UTIL_GetClosestLiftToPoints(it->FromLocation, it->ToLocation);
-
-			if (NearestPlatform)
+			if (it->DefaultConnectionFlags & NAV_FLAG_PLATFORM)
 			{
-				it->LinkedObject = NearestPlatform->Edict;
+				DynamicMapObject* NearestPlatform = UTIL_GetClosestPlatformToPoints(it->FromLocation, it->ToLocation);
+
+				if (NearestPlatform)
+				{
+					it->LinkedObject = NearestPlatform->Edict;
+				}
 			}
 		}
 	}
+}
+
+void NAV_PopulateAllConnectionsAffectedByDynamicObjects()
+{
+	for (auto objectIt = DynamicMapObjects.begin(); objectIt != DynamicMapObjects.end(); objectIt++)
+	{
+		NAV_PopulateConnectionsAffectedByDynamicObject(&(*objectIt));
+	}
+}
+
+void NAV_OnDynamicMapObjectBecomeIdle(DynamicMapObject* Object)
+{
+	if (Object->Type == MAPOBJECT_STATIC)
+	{
+		NAV_ApplyTempObstaclesToObject(Object, DT_AREA_NULL);
+	}
+}
+
+void NAV_OnDynamicMapObjectStopIdle(DynamicMapObject* Object)
+{
+	for (auto it = Object->AffectedConnections.begin(); it != Object->AffectedConnections.end(); it++)
+	{
+		NavOffMeshConnection* ThisConnection = (*it);
+
+		NAV_ModifyOffMeshConnectionFlag(ThisConnection, ThisConnection->DefaultConnectionFlags);
+	}
+
+	for (auto it = Object->TempObstacles.begin(); it != Object->TempObstacles.end(); it++)
+	{
+		NAV_RemoveTemporaryObstacleFromNavmesh(*it);
+	}
+
+	Object->TempObstacles.clear();
 }
 
 void NAV_UpdateDynamicMapObjects()
@@ -7310,10 +7183,31 @@ void NAV_UpdateDynamicMapObjects()
 	{
 		DynamicMapObject* ThisObject = &(*it);
 
+		if (ThisObject->Type == MAPOBJECT_STATIC)
+		{
+			if (ThisObject->State != OBJECTSTATE_IDLE)
+			{
+				if (ThisObject->Edict->v.velocity.Length() <= 0.0f)
+				{
+					ThisObject->State = OBJECTSTATE_IDLE;
+					NAV_OnDynamicMapObjectBecomeIdle(ThisObject);
+				}
+			}
+
+			it++;
+			continue;
+		}
+
 		if ((ThisObject->Type == TRIGGER_BREAK && ThisObject->Edict->v.health <= 0))
 		{
 			NAV_OnTriggerActivated(ThisObject);
 
+			it = DynamicMapObjects.erase(it);
+			continue;
+		}
+
+		if (FNullEnt(ThisObject->Edict) || ThisObject->Edict->v.deadflag != DEAD_NO)
+		{
 			it = DynamicMapObjects.erase(it);
 			continue;
 		}
@@ -7411,7 +7305,23 @@ void NAV_UpdateDynamicMapObjects()
 			{
 				if (NextStop.bWaitForRetrigger)
 				{
-					ThisObject->State = OBJECTSTATE_IDLE;
+					if (ThisObject->Type == MAPOBJECT_DOOR)
+					{
+						if (NextStop.WaitTime < 0.0f && !ThisObject->bToggleActive)
+						{
+							ThisObject->Type = MAPOBJECT_STATIC;							
+						}
+						else
+						{
+							ThisObject->State = OBJECTSTATE_IDLE;
+						}
+					}
+					else
+					{
+						ThisObject->State = OBJECTSTATE_IDLE;
+						NAV_OnDynamicMapObjectBecomeIdle(ThisObject);
+					}
+					
 				}
 				else
 				{
@@ -7453,6 +7363,7 @@ void NAV_UpdateDynamicMapObjects()
 				if (!bAtStop || NewStop.bWaitForRetrigger)
 				{
 					ThisObject->State = OBJECTSTATE_IDLE;
+					NAV_OnDynamicMapObjectBecomeIdle(ThisObject);
 				}
 				else
 				{
@@ -7480,6 +7391,18 @@ void NAV_UpdateDynamicMapObjects()
 			if (gpGlobals->time - ThisObject->LastActivatedTime >= ThisObject->Wait)
 			{
 				ThisObject->State = OBJECTSTATE_IDLE;
+				NAV_OnDynamicMapObjectBecomeIdle(ThisObject);
+				it++;
+				continue;
+			}
+		}
+
+		if ((ThisObject->Type == MAPOBJECT_DOOR || ThisObject->Type == MAPOBJECT_PLATFORM) && ThisObject->State == OBJECTSTATE_IDLE)
+		{
+			// We have no way of activating this door. It's now a permanent blockage
+			if (ThisObject->Triggers.size() == 0)
+			{
+				ThisObject->Type = MAPOBJECT_STATIC;
 				it++;
 				continue;
 			}
@@ -7616,7 +7539,13 @@ void NAV_LinkDynamicMapObjectsToTriggers()
 
 		if (ThisObject->Type == MAPOBJECT_DOOR)
 		{
+			// Gotta use this door to open it, so add the door itself as its own trigger
 			if (ThisObject->Edict->v.spawnflags & DOOR_USE_ONLY)
+			{
+				ThisObject->Triggers.push_back(ThisObject->Edict);
+			}
+			// Must be one o' them fancy touch-activamated doors. Technically the bot will still try to use the door, but they will touch it in the process so no big deal
+			else if (ThisObject->ObjectName == NULL || ThisObject->ObjectName[0] == '\0')
 			{
 				ThisObject->Triggers.push_back(ThisObject->Edict);
 			}
@@ -8117,7 +8046,7 @@ DynamicMapObject* NAV_GetBestTriggerForObject(DynamicMapObject* ObjectToActivate
 			{
 				if (pathIt->flag & NAV_FLAG_PLATFORM)
 				{
-					if (UTIL_GetClosestLiftToPoints(pathIt->FromLocation, pathIt->Location) == ObjectToActivate) 
+					if (UTIL_GetClosestPlatformToPoints(pathIt->FromLocation, pathIt->Location) == ObjectToActivate) 
 					{
 						bOtherSideOfLift = true;
 						break;
@@ -8145,6 +8074,27 @@ void DEBUG_PrintObjectInfo(DynamicMapObject* Object)
 	char interbuf[164];
 
 	sprintf(buf, "Info for %s:\n\n", (Object->Edict->v.targetname != 0) ? STRING(Object->Edict->v.targetname) : STRING(Object->Edict->v.classname));
+
+	string CurrentType;
+
+	switch (Object->Type)
+	{
+	case MAPOBJECT_STATIC:
+		CurrentType = "Static";
+		break;
+	case MAPOBJECT_DOOR:
+		CurrentType = "Door";
+		break;
+	case MAPOBJECT_PLATFORM:
+		CurrentType = "Platform";
+		break;
+	default:
+		CurrentType = "Invalid";
+		break;
+	}
+
+	sprintf(interbuf, "Type: %s\n", CurrentType.c_str());
+	strcat(buf, interbuf);
 
 	string CurrentState;
 
@@ -8266,7 +8216,7 @@ void DEBUG_PrintObjectInfo(DynamicMapObject* Object)
 
 	UTIL_DrawHUDText(AIMGR_GetListenServerEdict(), 1, 0.6, 0.1f, 255, 255, 255, buf);
 
-	DynamicMapObject* BestTrigger = NAV_GetBestTriggerForObject(Object, AIMGR_GetListenServerEdict(), GetBaseNavProfile(PLAYER_BASE_NavAgentProfile));
+	DynamicMapObject* BestTrigger = NAV_GetBestTriggerForObject(Object, AIMGR_GetListenServerEdict(), GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
 
 	if (BestTrigger)
 	{
@@ -8275,7 +8225,7 @@ void DEBUG_PrintObjectInfo(DynamicMapObject* Object)
 
 	if (AIMGR_GetListenServerEdict()->v.groundentity == Object->Edict)
 	{
-		Vector NearestDisembark = NAV_GetNearestPlatformDisembarkPoint(AIMGR_GetListenServerEdict(), Object);
+		Vector NearestDisembark = NAV_GetNearestPlatformDisembarkPoint(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), AIMGR_GetListenServerEdict(), Object);
 
 		if (!vIsZero(NearestDisembark))
 		{

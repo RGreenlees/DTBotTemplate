@@ -900,11 +900,23 @@ void RunAIPlayerFrame(AvHAIPlayer* pBot)
 
 	StartNewBotFrame(pBot);
 
-	AIPlayerThink(pBot);
+	if (AIMGR_HasBotStartedGame(pBot))
+	{
+		AIPlayerThink(pBot);
+	}
+	else
+	{
+		AIPlayerStartGameThink(pBot);
+	}	
 
 	BotUpdateDesiredViewRotation(pBot);
 
 	EndBotFrame(pBot);
+}
+
+void AIPlayerStartGameThink(AvHAIPlayer* pBot)
+{
+	// Any code here to make the bot join the game and start playing
 }
 
 void AIPlayerThink(AvHAIPlayer* pBot)

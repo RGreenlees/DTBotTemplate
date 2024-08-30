@@ -72,6 +72,8 @@ void OnBotTeleport(AvHAIPlayer* pBot);
 void RunAIPlayerFrame(AvHAIPlayer* pBot);
 // The bot's actual think routine. All the logic to make the bot do something sits here
 void AIPlayerThink(AvHAIPlayer* pBot);
+// The bot's think routine if they need to do something to join a team and start playing (e.g. pick a class)
+void AIPlayerStartGameThink(AvHAIPlayer* pBot);
 
 // Called when the bot is killed by someone
 void AIPlayerKilled(AvHAIPlayer* pBot, edict_t* Killer);

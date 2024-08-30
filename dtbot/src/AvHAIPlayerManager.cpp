@@ -238,14 +238,9 @@ void AIMGR_AddAIPlayerToTeam(int Team)
 
 }
 
-bool AIMGR_HasBotJoinedGame(AvHAIPlayer* pBot)
+bool AIMGR_HasBotStartedGame(AvHAIPlayer* pBot)
 {
 	return true;
-}
-
-void AIMGR_BotJoinGame(AvHAIPlayer* pBot, int DesiredTeam)
-{
-	return;
 }
 
 byte BotThrottledMsec(AvHAIPlayer* inAIPlayer, float CurrentTime)

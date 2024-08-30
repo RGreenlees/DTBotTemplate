@@ -35,8 +35,8 @@ void	AIMGR_UpdateAIPlayers();
 
 bool AIMGR_HasMatchEnded();
 
-void AIMGR_BotJoinGame(AvHAIPlayer* pBot, int DesiredTeam);
-bool AIMGR_HasBotJoinedGame(AvHAIPlayer* pBot);
+// Has the bot actually started playing, or are they in a lobby, or do they need to pick a team or class before they can play?
+bool AIMGR_HasBotStartedGame(AvHAIPlayer* pBot);
 
 // Called every 0.2s to determine if bots need to be added/removed. Calls UpdateTeamBalance or UpdateFillTeams depending on auto-mode
 void	AIMGR_UpdateAIPlayerCounts();

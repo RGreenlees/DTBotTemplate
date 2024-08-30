@@ -22,6 +22,13 @@ enum NavMovementFlag
 	NAV_FLAG_ALL = -1		// All flags
 };
 
+// Nav hint types
+enum NavHintType
+{
+	NAV_HINT_AMBUSH = 1 << 0,		// Ambush
+	NAV_HINT_ANY = -1		// Any hint type
+};
+
 // Area types. Defines the cost of movement through an area and which flag to use
 enum NavArea
 {
@@ -58,6 +65,14 @@ typedef struct _NAV_AGENT_PROFILE
 // List of base agent profiles
 extern std::vector<NavAgentProfile> BaseAgentProfiles;
 
+// Agent profile definition. Holds all information an agent needs when querying the nav mesh
+typedef struct _NAV_HINT
+{
+	unsigned int NavMeshIndex = 0;
+	unsigned int HintTypes = 0;
+	Vector Position;
+} NavHint;
+
 // Retrieve appropriate flag for area (See process() in the MeshProcess struct)
 inline NavMovementFlag GetFlagForArea(NavArea Area)
 {
@@ -66,13 +81,13 @@ inline NavMovementFlag GetFlagForArea(NavArea Area)
 	case NAV_AREA_UNWALKABLE:
 		return NAV_FLAG_DISABLED;
 	case NAV_AREA_WALK:
-		return NAV_FLAG_CROUCH;
+		return NAV_FLAG_WALK;
 	case NAV_AREA_CROUCH:
-		return NAV_FLAG_JUMP;
-	case NAV_AREA_OBSTRUCTED:
-		return NAV_FLAG_LADDER;
-	case NAV_AREA_HAZARD:
 		return NAV_FLAG_CROUCH;
+	case NAV_AREA_OBSTRUCTED:
+		return NAV_FLAG_JUMP;
+	case NAV_AREA_HAZARD:
+		return NAV_FLAG_WALK;
 	default:
 		return NAV_FLAG_DISABLED;
 	}

@@ -190,7 +190,7 @@ Vector UTIL_GetGrenadeThrowTarget(edict_t* Player, const Vector TargetLocation, 
 
 		Vector NewSpot = TargetLocation + (Orientation * UTIL_MetresToGoldSrcUnits(1.5f));
 
-		NewSpot = UTIL_ProjectPointToNavmesh(NewSpot);
+		NewSpot = UTIL_ProjectPointToNavmesh(NAV_MESH_DEFAULT, NewSpot);
 
 		if (NewSpot != ZERO_VECTOR)
 		{
@@ -220,7 +220,7 @@ Vector UTIL_GetGrenadeThrowTarget(edict_t* Player, const Vector TargetLocation, 
 
 		Vector ClosestPointInTrajectory = vClosestPointOnLine(FurthestPointVisible, LineEnd, TargetLocation);
 
-		ClosestPointInTrajectory = UTIL_ProjectPointToNavmesh(ClosestPointInTrajectory);
+		ClosestPointInTrajectory = UTIL_ProjectPointToNavmesh(NAV_MESH_DEFAULT, ClosestPointInTrajectory);
 		ClosestPointInTrajectory.z += 10.0f;
 
 		if (vDist2DSq(ClosestPointInTrajectory, TargetLocation) < sqrf(ExplosionRadius) && UTIL_PlayerHasLOSToLocation(Player, ClosestPointInTrajectory, UTIL_MetresToGoldSrcUnits(10.0f)) && UTIL_PointIsDirectlyReachable(ClosestPointInTrajectory, TargetLocation))

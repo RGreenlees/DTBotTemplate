@@ -118,20 +118,6 @@ typedef struct _TEMPORARY_OBSTACLE
 	unsigned int ObstacleRef = 0; // References to this obstacle on all defined nav meshes for easy removal
 } NavTempObstacle;
 
-typedef struct _LOAD_NAV_HINT
-{
-	unsigned int id = 0;
-	unsigned int hintType = 0;
-	float position[3] = { 0.0f, 0.0f, 0.0f };
-} LoadNavHint;
-
-typedef struct _NAV_HINT
-{
-	unsigned int NavMeshIndex = 0;
-	unsigned int hintType = 0;
-	Vector Position = ZERO_VECTOR;
-} NavHint;
-
 // Pending message a bot wants to say. Allows for a delay in sending a message to simulate typing, or prevent too many messages on the same frame
 typedef struct _BOT_MSG
 {

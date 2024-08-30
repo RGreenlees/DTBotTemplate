@@ -699,7 +699,7 @@ bool LoadNavMesh(const char* mapname)
 
 			Vector Position = Vector(def.Position[0], -def.Position[2], def.Position[1]);
 
-			NAV_AddHintToNavmesh(i, Position, def.hintType);
+			NAV_AddHintToNavmesh(i, Position, def.HintTypes);
 		}
 	}
 
@@ -716,6 +716,8 @@ bool loadNavigationData(const char* mapname)
 	// Unload the previous nav meshes if they're still loaded
 	UnloadNavigationData();
 
+	PopulateBaseAgentProfiles();
+
 	if (!LoadNavMesh(mapname))
 	{
 		NavmeshStatus = NAVMESH_STATUS_FAILED;
@@ -724,7 +726,7 @@ bool loadNavigationData(const char* mapname)
 
 	NavmeshStatus = NAVMESH_STATUS_SUCCESS;
 	
-	PopulateBaseAgentProfiles();
+	
 
 	return true;
 }
@@ -935,9 +937,11 @@ static float frand()
 	return (float)rand() / (float)RAND_MAX;
 }
 
-Vector AdjustPointForPathfinding(const Vector Point)
+Vector AdjustPointForPathfinding(unsigned int NavMeshIndex, const Vector Point, const NavAgentProfile& NavProfile)
 {
-	Vector ProjectedPoint = UTIL_ProjectPointToNavmesh(Point);
+	if (vIsZero(Point) || NavMeshIndex > NUM_NAV_MESHES) { return ZERO_VECTOR; }
+
+	Vector ProjectedPoint = UTIL_ProjectPointToNavmesh(NavMeshIndex, Point, NavProfile);
 
 	int PointContents = UTIL_PointContents(ProjectedPoint);
 
@@ -965,37 +969,6 @@ Vector AdjustPointForPathfinding(const Vector Point)
 
 	return ProjectedPoint;
 
-}
-
-Vector AdjustPointForPathfinding(const Vector Point, const NavAgentProfile& NavProfile)
-{
-	Vector ProjectedPoint = UTIL_ProjectPointToNavmesh(Point, Vector(400.0f, 100.0f, 400.0f), NavProfile);
-
-	int PointContents = UTIL_PointContents(ProjectedPoint);
-
-	if (PointContents == CONTENTS_SOLID)
-	{
-		int PointContents = UTIL_PointContents(ProjectedPoint + Vector(0.0f, 0.0f, 32.0f));
-
-		if (PointContents != CONTENTS_SOLID && PointContents != CONTENTS_LADDER)
-		{
-			Vector TraceStart = ProjectedPoint + Vector(0.0f, 0.0f, 32.0f);
-			Vector TraceEnd = TraceStart - Vector(0.0f, 0.0f, 50.0f);
-			Vector NewPoint = UTIL_GetHullTraceHitLocation(TraceStart, TraceEnd, point_hull);
-
-			if (!vIsZero(NewPoint)) { return NewPoint; }
-		}
-	}
-	else
-	{
-		Vector TraceStart = ProjectedPoint + Vector(0.0f, 0.0f, 5.0f);
-		Vector TraceEnd = TraceStart - Vector(0.0f, 0.0f, 32.0f);
-		Vector NewPoint = UTIL_GetHullTraceHitLocation(TraceStart, TraceEnd, point_hull);
-
-		if (!vIsZero(NewPoint)) { return NewPoint; }
-	}
-
-	return ProjectedPoint;
 }
 
 // Special path finding that takes flight movement into account
@@ -1029,8 +1002,8 @@ dtStatus FindFlightPathToPoint(const NavAgentProfile &NavProfile, Vector FromLoc
 		return DT_FAILURE;
 	}
 
-	Vector FromFloorLocation = AdjustPointForPathfinding(FromLocation);
-	Vector ToFloorLocation = AdjustPointForPathfinding(ToLocation);
+	Vector FromFloorLocation = AdjustPointForPathfinding(NavProfile.NavMeshIndex, FromLocation, NavProfile);
+	Vector ToFloorLocation = AdjustPointForPathfinding(NavProfile.NavMeshIndex, ToLocation, NavProfile);
 
 	float pStartPos[3] = { FromFloorLocation.x, FromFloorLocation.z, -FromFloorLocation.y };
 	float pEndPos[3] = { ToFloorLocation.x, ToFloorLocation.z, -ToFloorLocation.y };
@@ -1131,7 +1104,7 @@ dtStatus FindFlightPathToPoint(const NavAgentProfile &NavProfile, Vector FromLoc
 			NextPathPoint = UTIL_AdjustPointAwayFromNavWall(NextPathPoint, 16.0f);
 		}
 
-		AdjustPointForPathfinding(NextPathPoint);
+		AdjustPointForPathfinding(NavProfile.NavMeshIndex, NextPathPoint, NavProfile);
 
 		NextPathPoint.z += 20.0f;
 
@@ -1274,8 +1247,8 @@ dtStatus FindPathClosestToPoint(const NavAgentProfile& NavProfile, const Vector 
 		return DT_FAILURE;
 	}
 
-	Vector FromFloorLocation = AdjustPointForPathfinding(FromLocation);
-	Vector ToFloorLocation = AdjustPointForPathfinding(ToLocation);
+	Vector FromFloorLocation = AdjustPointForPathfinding(NavProfile.NavMeshIndex, FromLocation, NavProfile);
+	Vector ToFloorLocation = AdjustPointForPathfinding(NavProfile.NavMeshIndex, ToLocation, NavProfile);
 
 	float pStartPos[3] = { FromFloorLocation.x, FromFloorLocation.z, -FromFloorLocation.y };
 	float pEndPos[3] = { ToFloorLocation.x, ToFloorLocation.z, -ToFloorLocation.y };
@@ -1431,6 +1404,8 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(pBot->BotNavInfo.NavProfile);
 	const dtQueryFilter* m_navFilter = &pBot->BotNavInfo.NavProfile.Filters;
 
+	int NavMeshIndex = pBot->BotNavInfo.NavProfile.NavMeshIndex;
+
 	if (!m_navQuery || !m_navMesh || !m_navFilter || vIsZero(ToLocation))
 	{
 		return DT_FAILURE;
@@ -1473,11 +1448,11 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 		Vector GeneralDir = UTIL_GetVectorNormal2D(ToLocation - pBot->CurrentFloorPosition);
 		Vector CheckLocation = FromLocation + (GeneralDir * 16.0f);
 
-		Vector FromFloorLocation = AdjustPointForPathfinding(CheckLocation);
+		Vector FromFloorLocation = AdjustPointForPathfinding(NavMeshIndex, CheckLocation, pBot->BotNavInfo.NavProfile);
 
 		if (vIsZero(FromFloorLocation))
 		{
-			FromFloorLocation = AdjustPointForPathfinding(FromLocation);
+			FromFloorLocation = AdjustPointForPathfinding(NavMeshIndex, FromLocation, pBot->BotNavInfo.NavProfile);
 		}
 	}
 
@@ -1505,7 +1480,7 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 		}
 	}
 
-	Vector ToFloorLocation = AdjustPointForPathfinding(ToLocation);
+	Vector ToFloorLocation = AdjustPointForPathfinding(NavMeshIndex, ToLocation, pBot->BotNavInfo.NavProfile);
 
 	float pStartPos[3] = { FromFloorLocation.x, FromFloorLocation.z, -FromFloorLocation.y };
 	float pEndPos[3] = { ToFloorLocation.x, ToFloorLocation.z, -ToFloorLocation.y };
@@ -1611,7 +1586,7 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 
 		NextPathNode.Location = UTIL_AdjustPointAwayFromNavWall(NextPathNode.Location, 16.0f);
 
-		NextPathNode.Location = AdjustPointForPathfinding(NextPathNode.Location);
+		NextPathNode.Location = AdjustPointForPathfinding(NavMeshIndex, NextPathNode.Location, pBot->BotNavInfo.NavProfile);
 
 		if (CurrFlags != NAV_FLAG_JUMP || NextPathNode.FromLocation.z > NextPathNode.Location.z)
 		{
@@ -1721,28 +1696,28 @@ Vector NAV_GetNearestPlatformDisembarkPoint(const NavAgentProfile& NavProfile, e
 		float ProjectWidth = fmaxf((LiftReference->Edict->v.absmax.x - LiftReference->Edict->v.absmin.x) * 0.5f, (LiftReference->Edict->v.absmax.y - LiftReference->Edict->v.absmin.y) * 0.5f);
 		ProjectWidth += 100.0f;
 
-		Vector ProjectedLoc = UTIL_ProjectPointToNavmesh(FrontLocation, Vector(ProjectWidth, ProjectWidth, 50.0f));
+		Vector ProjectedLoc = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, FrontLocation, NavProfile, Vector(ProjectWidth, ProjectWidth, 50.0f));
 
 		if (!vIsZero(ProjectedLoc) && !vPointOverlaps2D(ProjectedLoc, LiftReference->Edict->v.absmin, LiftReference->Edict->v.absmax))
 		{
 			return ProjectedLoc;
 		}
 
-		ProjectedLoc = UTIL_ProjectPointToNavmesh(RearLocation, Vector(ProjectWidth, ProjectWidth, 50.0f));
+		ProjectedLoc = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, RearLocation, NavProfile, Vector(ProjectWidth, ProjectWidth, 50.0f));
 
 		if (!vIsZero(ProjectedLoc) && !vPointOverlaps2D(ProjectedLoc, LiftReference->Edict->v.absmin, LiftReference->Edict->v.absmax))
 		{
 			return ProjectedLoc;
 		}
 
-		ProjectedLoc = UTIL_ProjectPointToNavmesh(LeftLocation, Vector(ProjectWidth, ProjectWidth, 50.0f));
+		ProjectedLoc = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, LeftLocation, NavProfile, Vector(ProjectWidth, ProjectWidth, 50.0f));
 
 		if (!vIsZero(ProjectedLoc) && !vPointOverlaps2D(ProjectedLoc, LiftReference->Edict->v.absmin, LiftReference->Edict->v.absmax))
 		{
 			return ProjectedLoc;
 		}
 
-		ProjectedLoc = UTIL_ProjectPointToNavmesh(RightLocation, Vector(ProjectWidth, ProjectWidth, 50.0f));
+		ProjectedLoc = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, RightLocation, NavProfile, Vector(ProjectWidth, ProjectWidth, 50.0f));
 
 		if (!vIsZero(ProjectedLoc) && !vPointOverlaps2D(ProjectedLoc, LiftReference->Edict->v.absmin, LiftReference->Edict->v.absmax))
 		{
@@ -2307,9 +2282,9 @@ DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, con
 	return nullptr;
 }
 
-bool UTIL_IsPathBlockedByObject(const Vector StartLoc, const Vector EndLoc, DynamicMapObject* SearchObject)
+bool UTIL_IsPathBlockedByObject(const NavAgentProfile& NavProfile, const Vector StartLoc, const Vector EndLoc, DynamicMapObject* SearchObject)
 {
-	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(EndLoc, GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
+	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, EndLoc, NavProfile);
 
 	if (!ValidNavmeshPoint)
 	{
@@ -2321,7 +2296,7 @@ bool UTIL_IsPathBlockedByObject(const Vector StartLoc, const Vector EndLoc, Dyna
 
 	// Now we find a path backwards from the valid nav mesh point to our location, trying to get as close as we can to it
 
-	dtStatus PathFindingStatus = FindPathClosestToPoint(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), StartLoc, ValidNavmeshPoint, TestPath, 50.0f);
+	dtStatus PathFindingStatus = FindPathClosestToPoint(NavProfile, StartLoc, ValidNavmeshPoint, TestPath, 50.0f);
 
 	if (dtStatusSucceed(PathFindingStatus))
 	{
@@ -2339,7 +2314,7 @@ bool UTIL_IsPathBlockedByObject(const Vector StartLoc, const Vector EndLoc, Dyna
 	return true;
 }
 
-DynamicMapObject* UTIL_GetNearestObjectTrigger(const Vector Location, DynamicMapObject* Object, edict_t* IgnoreTrigger, bool bCheckBlockedByDoor)
+DynamicMapObject* UTIL_GetNearestObjectTrigger(const NavAgentProfile& NavProfile, const Vector Location, DynamicMapObject* Object, edict_t* IgnoreTrigger, bool bCheckBlockedByDoor)
 {
 	if (!Object) { return nullptr; }
 
@@ -2356,9 +2331,9 @@ DynamicMapObject* UTIL_GetNearestObjectTrigger(const Vector Location, DynamicMap
 
 		if (!FNullEnt(ThisTrigger->Edict) && ThisTrigger->Edict != IgnoreTrigger && ThisTrigger->bIsActive)
 		{
-			Vector ButtonLocation = UTIL_GetButtonFloorLocation(Location, ThisTrigger->Edict);
+			Vector ButtonLocation = UTIL_GetButtonFloorLocation(NavProfile, Location, ThisTrigger->Edict);
 
-			if ((!bCheckBlockedByDoor || !UTIL_IsPathBlockedByObject(Location, ButtonLocation, Object)) && UTIL_PointIsReachable(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), Location, ButtonLocation, 64.0f))
+			if ((!bCheckBlockedByDoor || !UTIL_IsPathBlockedByObject(NavProfile, Location, ButtonLocation, Object)) && UTIL_PointIsReachable(NavProfile, Location, ButtonLocation, 64.0f))
 			{
 				float ThisDist = vDist3DSq(Location, ButtonLocation);
 
@@ -2493,7 +2468,7 @@ void NewMove(AvHAIPlayer* pBot)
 						}
 						else
 						{
-							NAV_SetMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->Edict->v.origin, Trigger->Edict), nullptr);
+							NAV_SetMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, Trigger->Edict), nullptr);
 						}
 						return;
 					}
@@ -3261,7 +3236,7 @@ bool NAV_CanBoardPlatform(AvHAIPlayer* pBot, DynamicMapObject* Platform, Vector 
 
 	NavAgentProfile CheckProfile = (pBot) ? pBot->BotNavInfo.NavProfile : GetBaseAgentProfile(NAV_PROFILE_DEFAULT);
 
-	Vector ProjectedLocation = UTIL_ProjectPointToNavmesh(ClosestCurrentPoint, Vector(Dist, Dist, 50.0f), CheckProfile);
+	Vector ProjectedLocation = UTIL_ProjectPointToNavmesh(CheckProfile.NavMeshIndex, ClosestCurrentPoint, CheckProfile, Vector(Dist, Dist, 50.0f));
 
 	return (!vIsZero(ProjectedLocation) && UTIL_PointIsDirectlyReachable(BoardingPoint, ProjectedLocation) && vDist2DSq(BoardingPoint, ProjectedLocation) <= sqrf(Dist + 16.0f));
 }
@@ -3372,7 +3347,7 @@ void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPo
 			}
 			else
 			{
-				NAV_SetMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->Edict->v.origin, BestTrigger->Edict), nullptr);
+				NAV_SetMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, BestTrigger->Edict), nullptr);
 				return;
 			}
 		}
@@ -3732,21 +3707,21 @@ bool UTIL_PointIsDirectlyReachable(const AvHAIPlayer* pBot, const Vector start, 
 
 const dtNavMesh* UTIL_GetNavMeshForProfile(const NavAgentProfile& NavProfile)
 {
-	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= NUM_NAV_MESHES) { return nullptr; }
+	if (NavProfile.NavMeshIndex >= NUM_NAV_MESHES) { return nullptr; }
 
 	return NavMeshes[NavProfile.NavMeshIndex].navMesh;
 }
 
 const dtNavMeshQuery* UTIL_GetNavMeshQueryForProfile(const NavAgentProfile& NavProfile)
 {
-	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= NUM_NAV_MESHES) { return nullptr; }
+	if (NavProfile.NavMeshIndex >= NUM_NAV_MESHES) { return nullptr; }
 
 	return NavMeshes[NavProfile.NavMeshIndex].navQuery;
 }
 
 const dtTileCache* UTIL_GetTileCacheForProfile(const NavAgentProfile& NavProfile)
 {
-	if (NavProfile.NavMeshIndex < 0 || NavProfile.NavMeshIndex >= NUM_NAV_MESHES) { return nullptr; }
+	if (NavProfile.NavMeshIndex >= NUM_NAV_MESHES) { return nullptr; }
 
 	return NavMeshes[NavProfile.NavMeshIndex].tileCache;
 }
@@ -3954,9 +3929,7 @@ void UTIL_TraceNavLine(const NavAgentProfile &NavProfile, const Vector Start, co
 		HitResult->bStartOffMesh = false;
 		HitResult->TraceEndPoint = Vector(EndNearest[0], -EndNearest[2], EndNearest[1]);
 		return;
-	}
-
-	
+	}	
 
 	m_navQuery->raycast(StartPoly, StartNearest, EndNearest, m_Filter, &hitDist, HitNormal, PolyPath, &pathCount, MAX_AI_PATH_SIZE);
 
@@ -3974,7 +3947,7 @@ void UTIL_TraceNavLine(const NavAgentProfile &NavProfile, const Vector Start, co
 		Vector Dir = UTIL_GetVectorNormal(End - Start);
 		Vector Point = Start + (Dir * HitResult->flFraction);
 
-		HitLocation = UTIL_ProjectPointToNavmesh(Point, Vector(100.0f, 100.0f, 100.0f), NavProfile);
+		HitLocation = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, Point, NavProfile, Vector(100.0f, 100.0f, 100.0f));
 	}
 
 	HitResult->TraceEndPoint = HitLocation;
@@ -4490,7 +4463,7 @@ bool NAV_GenerateNewBasePath(AvHAIPlayer* pBot, const Vector NewDestination, con
 	}
 	else
 	{
-		Vector NavAdjustedDestination = AdjustPointForPathfinding(NewDestination);
+		Vector NavAdjustedDestination = AdjustPointForPathfinding(BotNavInfo->NavProfile.NavMeshIndex, NewDestination, BotNavInfo->NavProfile);
 		if (vIsZero(NavAdjustedDestination)) { return false; }
 
 		PathFindingStatus = FindPathClosestToPoint(pBot, BotNavInfo->MoveStyle, NavAdjustedDestination, PendingPath, MaxAcceptableDist);
@@ -4868,7 +4841,7 @@ bool NAV_GenerateNewMoveTaskPath(AvHAIPlayer* pBot, const Vector NewDestination,
 	}
 	else
 	{
-		Vector NavAdjustedDestination = AdjustPointForPathfinding(NewDestination);
+		Vector NavAdjustedDestination = AdjustPointForPathfinding(BotNavInfo->NavProfile.NavMeshIndex, NewDestination, BotNavInfo->NavProfile);
 		if (vIsZero(NavAdjustedDestination)) { return false; }
 
 		PathFindingStatus = FindPathClosestToPoint(pBot, BotNavInfo->MoveStyle, NavAdjustedDestination, PendingPath, 100.0f);
@@ -4896,8 +4869,8 @@ bool NAV_GenerateNewMoveTaskPath(AvHAIPlayer* pBot, const Vector NewDestination,
 
 Vector FindClosestPointBackOnPath(AvHAIPlayer* pBot, Vector Destination)
 {
-	Vector AdjustedEndPoint = AdjustPointForPathfinding(Destination);
-	AdjustedEndPoint = UTIL_ProjectPointToNavmesh(Destination, pBot->BotNavInfo.NavProfile);
+	Vector AdjustedEndPoint = AdjustPointForPathfinding(pBot->BotNavInfo.NavProfile.NavMeshIndex, Destination, pBot->BotNavInfo.NavProfile);
+	AdjustedEndPoint = UTIL_ProjectPointToNavmesh(pBot->BotNavInfo.NavProfile.NavMeshIndex, Destination, pBot->BotNavInfo.NavProfile);
 
 	vector<bot_path_node> BackwardsPath;
 	BackwardsPath.clear();
@@ -5375,169 +5348,17 @@ bool BotIsAtLocation(const AvHAIPlayer* pBot, const Vector Destination)
 	return (vDist2DSq(pBot->Edict->v.origin, Destination) < sqrf(GetPlayerRadius(pBot->Edict)) && fabs(pBot->CurrentFloorPosition.z - Destination.z) <= GetPlayerHeight(pBot->Edict, false));
 }
 
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents)
+Vector UTIL_ProjectPointToNavmesh(const int NavmeshIndex, const Vector Location, const NavAgentProfile& NavProfile, const Vector Extents)
 {
-	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
-	const dtQueryFilter* m_navFilter = &GetBaseAgentProfile(NAV_PROFILE_DEFAULT).Filters;
+	if (vIsZero(Location) || NavmeshIndex >= NUM_NAV_MESHES) { return ZERO_VECTOR; }
 
-	if (!m_navQuery) { return ZERO_VECTOR; }
+	nav_mesh ChosenNavMesh = NavMeshes[NavmeshIndex];
 
-	Vector PointToProject = Location;
-
-	float pCheckLoc[3] = { PointToProject.x, PointToProject.z, -PointToProject.y };
-
-	dtPolyRef FoundPoly;
-	float NavNearest[3];
-	float fExtents[3] = { Extents.x, Extents.z, Extents.y };
-
-	dtStatus success = m_navQuery->findNearestPoly(pCheckLoc, fExtents, m_navFilter, &FoundPoly, NavNearest);
-
-	if (FoundPoly > 0 && dtStatusSucceed(success))
-	{
-		return Vector(NavNearest[0], -NavNearest[2], NavNearest[1]);
-	}
-	else
-	{
-		int PointContents = UTIL_PointContents(PointToProject);
-
-		if (PointContents != CONTENTS_SOLID && PointContents != CONTENTS_LADDER)
-		{
-			Vector TraceHit = UTIL_GetTraceHitLocation(PointToProject + Vector(0.0f, 0.0f, 1.0f), PointToProject - Vector(0.0f, 0.0f, 1000.0f));
-
-			PointToProject = (!vIsZero(TraceHit)) ? TraceHit : Location;
-		}
-
-		float pRecheckLoc[3] = { PointToProject.x, PointToProject.z, -PointToProject.y };
-
-		dtStatus successRetry = m_navQuery->findNearestPoly(pRecheckLoc, fExtents, m_navFilter, &FoundPoly, NavNearest);
-
-		if (FoundPoly > 0 && dtStatusSucceed(success))
-		{
-			return Vector(NavNearest[0], -NavNearest[2], NavNearest[1]);
-		}
-		else
-		{
-			return ZERO_VECTOR;
-		}
-	}
-
-	return ZERO_VECTOR;
-}
-
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const int NavmeshIndex)
-{
-	const dtNavMeshQuery* m_navQuery = NavMeshes[NavmeshIndex].navQuery;
-	const dtNavMesh* m_navMesh = NavMeshes[NavmeshIndex].navMesh;
-	
-	dtQueryFilter ProjectionFilter;
-	ProjectionFilter.addIncludeFlags(NAV_FLAG_ALL);
-	ProjectionFilter.addExcludeFlags(NAV_FLAG_DISABLED);
-
-	if (!m_navQuery) { return ZERO_VECTOR; }
-
-	Vector PointToProject = Location;
-
-	float pCheckLoc[3] = { PointToProject.x, PointToProject.z, -PointToProject.y };
-
-	dtPolyRef FoundPoly;
-	float NavNearest[3];
-
-	dtStatus success = m_navQuery->findNearestPoly(pCheckLoc, pExtents, &ProjectionFilter, &FoundPoly, NavNearest);
-
-	if (FoundPoly > 0 && dtStatusSucceed(success))
-	{
-		return Vector(NavNearest[0], -NavNearest[2], NavNearest[1]);
-	}
-	else
-	{
-		int PointContents = UTIL_PointContents(PointToProject);
-
-		if (PointContents != CONTENTS_SOLID && PointContents != CONTENTS_LADDER)
-		{
-			Vector TraceHit = UTIL_GetTraceHitLocation(PointToProject + Vector(0.0f, 0.0f, 1.0f), PointToProject - Vector(0.0f, 0.0f, 1000.0f));
-
-			PointToProject = (!vIsZero(TraceHit)) ? TraceHit : Location;
-		}
-
-		float pRecheckLoc[3] = { PointToProject.x, PointToProject.z, -PointToProject.y };
-
-		dtStatus successRetry = m_navQuery->findNearestPoly(pRecheckLoc, pExtents, &ProjectionFilter, &FoundPoly, NavNearest);
-
-		if (FoundPoly > 0 && dtStatusSucceed(success))
-		{
-			return Vector(NavNearest[0], -NavNearest[2], NavNearest[1]);
-		}
-		else
-		{
-			return ZERO_VECTOR;
-		}
-	}
-
-	return ZERO_VECTOR;
-}
-
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, const int NavmeshIndex)
-{
-	const dtNavMeshQuery* m_navQuery = NavMeshes[NavmeshIndex].navQuery;
-	const dtNavMesh* m_navMesh = NavMeshes[NavmeshIndex].navMesh;
-
-	dtQueryFilter ProjectionFilter;
-	ProjectionFilter.addIncludeFlags(NAV_FLAG_ALL);
-	ProjectionFilter.addExcludeFlags(NAV_FLAG_DISABLED);
-
-	if (!m_navQuery) { return ZERO_VECTOR; }
-
-	Vector PointToProject = Location;
-
-	float pCheckLoc[3] = { PointToProject.x, PointToProject.z, -PointToProject.y };
-
-	dtPolyRef FoundPoly;
-	float NavNearest[3];
-
-	float fExtents[3] = { Extents.x, Extents.z, Extents.y };
-
-	dtStatus success = m_navQuery->findNearestPoly(pCheckLoc, fExtents, &ProjectionFilter, &FoundPoly, NavNearest);
-
-	if (FoundPoly > 0 && dtStatusSucceed(success))
-	{
-		return Vector(NavNearest[0], -NavNearest[2], NavNearest[1]);
-	}
-	else
-	{
-		int PointContents = UTIL_PointContents(PointToProject);
-
-		if (PointContents != CONTENTS_SOLID && PointContents != CONTENTS_LADDER)
-		{
-			Vector TraceHit = UTIL_GetTraceHitLocation(PointToProject + Vector(0.0f, 0.0f, 1.0f), PointToProject - Vector(0.0f, 0.0f, 1000.0f));
-
-			PointToProject = (!vIsZero(TraceHit)) ? TraceHit : Location;
-		}
-
-		float pRecheckLoc[3] = { PointToProject.x, PointToProject.z, -PointToProject.y };
-
-		dtStatus successRetry = m_navQuery->findNearestPoly(pRecheckLoc, fExtents, &ProjectionFilter, &FoundPoly, NavNearest);
-
-		if (FoundPoly > 0 && dtStatusSucceed(success))
-		{
-			return Vector(NavNearest[0], -NavNearest[2], NavNearest[1]);
-		}
-		else
-		{
-			return ZERO_VECTOR;
-		}
-	}
-
-	return ZERO_VECTOR;
-}
-
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const NavAgentProfile &NavProfile)
-{
-	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
+	const dtNavMeshQuery* m_navQuery = ChosenNavMesh.navQuery;
+	const dtNavMesh* m_navMesh = ChosenNavMesh.navMesh;
 	const dtQueryFilter* m_navFilter = &NavProfile.Filters;
 
-	if (!m_navQuery) { return ZERO_VECTOR; }
+	if (!m_navQuery || !m_navMesh) { return ZERO_VECTOR; }
 
 	Vector PointToProject = Location;
 
@@ -5546,7 +5367,7 @@ Vector UTIL_ProjectPointToNavmesh(const Vector Location, const NavAgentProfile &
 	dtPolyRef FoundPoly;
 	float NavNearest[3];
 
-	dtStatus success = m_navQuery->findNearestPoly(pCheckLoc, pExtents, m_navFilter, &FoundPoly, NavNearest);
+	dtStatus success = m_navQuery->findNearestPoly(pCheckLoc, Extents, m_navFilter, &FoundPoly, NavNearest);
 
 	if (FoundPoly > 0 && dtStatusSucceed(success))
 	{
@@ -5565,58 +5386,7 @@ Vector UTIL_ProjectPointToNavmesh(const Vector Location, const NavAgentProfile &
 
 		float pRecheckLoc[3] = { PointToProject.x, PointToProject.z, -PointToProject.y };
 
-		dtStatus successRetry = m_navQuery->findNearestPoly(pRecheckLoc, pExtents, m_navFilter, &FoundPoly, NavNearest);
-
-		if (FoundPoly > 0 && dtStatusSucceed(success))
-		{
-			return Vector(NavNearest[0], -NavNearest[2], NavNearest[1]);
-		}
-		else
-		{
-			return ZERO_VECTOR;
-		}
-	}
-
-	return ZERO_VECTOR;
-}
-
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, const NavAgentProfile& NavProfile)
-{
-	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
-	const dtQueryFilter* m_navFilter = &NavProfile.Filters;
-
-	if (!m_navQuery) { return ZERO_VECTOR; }
-
-	Vector PointToProject = Location;
-
-	float pCheckLoc[3] = { PointToProject.x, PointToProject.z, -PointToProject.y };
-
-	dtPolyRef FoundPoly;
-	float NavNearest[3];
-
-	float fExtents[3] = { Extents.x, Extents.z, Extents.y };
-
-	dtStatus success = m_navQuery->findNearestPoly(pCheckLoc, fExtents, m_navFilter, &FoundPoly, NavNearest);
-
-	if (FoundPoly > 0 && dtStatusSucceed(success))
-	{
-		return Vector(NavNearest[0], -NavNearest[2], NavNearest[1]);
-	}
-	else
-	{
-		int PointContents = UTIL_PointContents(PointToProject);
-
-		if (PointContents != CONTENTS_SOLID && PointContents != CONTENTS_LADDER)
-		{
-			Vector TraceHit = UTIL_GetTraceHitLocation(PointToProject + Vector(0.0f, 0.0f, 1.0f), PointToProject - Vector(0.0f, 0.0f, 1000.0f));
-
-			PointToProject = (!vIsZero(TraceHit)) ? TraceHit : Location;
-		}
-
-		float pRecheckLoc[3] = { PointToProject.x, PointToProject.z, -PointToProject.y };
-
-		dtStatus successRetry = m_navQuery->findNearestPoly(pRecheckLoc, fExtents, m_navFilter, &FoundPoly, NavNearest);
+		dtStatus successRetry = m_navQuery->findNearestPoly(pRecheckLoc, Extents, m_navFilter, &FoundPoly, NavNearest);
 
 		if (FoundPoly > 0 && dtStatusSucceed(success))
 		{
@@ -5799,7 +5569,7 @@ bool BotRecalcPath(AvHAIPlayer* pBot, const Vector Destination)
 	ClearBotPath(pBot);
 	NAV_ClearMovementTask(pBot);
 
-	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(Destination, Vector(max_ai_use_reach, max_ai_use_reach, max_ai_use_reach), pBot->BotNavInfo.NavProfile);
+	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(pBot->BotNavInfo.NavProfile.NavMeshIndex, Destination, pBot->BotNavInfo.NavProfile, Vector(max_ai_use_reach, max_ai_use_reach, max_ai_use_reach));
 
 	// We can't actually get close enough to this point to consider it "reachable"
 	if (vIsZero(ValidNavmeshPoint))
@@ -6141,7 +5911,7 @@ Vector UTIL_GetFurthestVisiblePointOnPath(const Vector ViewerLocation, vector<bo
 	return ZERO_VECTOR;
 }
 
-Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdict)
+Vector UTIL_GetButtonFloorLocation(const NavAgentProfile& NavProfile, const Vector UserLocation, edict_t* ButtonEdict)
 {
 	Vector ClosestPoint = ZERO_VECTOR;
 
@@ -6154,7 +5924,7 @@ Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdi
 		ClosestPoint = UTIL_GetCentreOfEntity(ButtonEdict);
 	}
 
-	Vector ButtonAccessPoint = UTIL_ProjectPointToNavmesh(ClosestPoint, Vector(100.0f, 100.0f, 100.0f), BaseAgentProfiles[NAV_PROFILE_DEFAULT]);
+	Vector ButtonAccessPoint = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, ClosestPoint, NavProfile, Vector(100.0f, 100.0f, 100.0f));
 
 	if (vIsZero(ButtonAccessPoint))
 	{
@@ -6188,7 +5958,7 @@ Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdi
 		NewProjection = ClosestPoint + Vector(0.0f, 0.0f, 100.0f);
 	}
 
-	Vector NewButtonAccessPoint = UTIL_ProjectPointToNavmesh(NewProjection, BaseAgentProfiles[NAV_PROFILE_DEFAULT]);
+	Vector NewButtonAccessPoint = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, NewProjection, NavProfile);
 
 	if (vIsZero(NewButtonAccessPoint))
 	{
@@ -6227,13 +5997,13 @@ void NAV_PopulateConnectionsAffectedByDynamicObject(DynamicMapObject* Object)
 				if (vlineIntersectsAABB(ConnStart, MidPoint, ObjectCentre - HalfExtents, ObjectCentre + HalfExtents))
 				{
 					stopIt->AffectedConnections.push_back(&(*it));
-					break;
+					continue;
 				}
 
 				if (vlineIntersectsAABB(MidPoint, ConnEnd, ObjectCentre - HalfExtents, ObjectCentre + HalfExtents))
 				{
 					stopIt->AffectedConnections.push_back(&(*it));
-					break;
+					continue;
 				}
 			}
 		}
@@ -6461,8 +6231,8 @@ NavOffMeshConnection* NAV_AddOffMeshConnectionToNavmesh(unsigned int NavMeshInde
 {
 	if (NavMeshIndex >= NUM_NAV_MESHES || !NavMeshes[NavMeshIndex].tileCache) { return nullptr; }
 
-	Vector ProjectedStart = UTIL_ProjectPointToNavmesh(StartLoc, NavMeshIndex);
-	Vector ProjectedEnd = UTIL_ProjectPointToNavmesh(EndLoc, NavMeshIndex);
+	Vector ProjectedStart = UTIL_ProjectPointToNavmesh(NavMeshIndex, StartLoc);
+	Vector ProjectedEnd = UTIL_ProjectPointToNavmesh(NavMeshIndex, EndLoc);
 
 	if (vIsZero(ProjectedStart) || vIsZero(ProjectedEnd)) { return nullptr; }
 
@@ -6515,7 +6285,7 @@ NavHint* NAV_AddHintToNavmesh(unsigned int NavMeshIndex, Vector Location, unsign
 
 	NavHint NewHint;
 	NewHint.Position = Location;
-	NewHint.hintType = HintFlags;
+	NewHint.HintTypes = HintFlags;
 
 	NavMeshes[NavMeshIndex].MeshHints.push_back(NewHint);
 
@@ -6585,8 +6355,8 @@ dtStatus DEBUG_TestFindPath(const NavAgentProfile& NavProfile, const Vector From
 		return DT_FAILURE;
 	}
 
-	Vector FromFloorLocation = AdjustPointForPathfinding(FromLocation);
-	Vector ToFloorLocation = AdjustPointForPathfinding(ToLocation);
+	Vector FromFloorLocation = AdjustPointForPathfinding(NavProfile.NavMeshIndex, FromLocation, NavProfile);
+	Vector ToFloorLocation = AdjustPointForPathfinding(NavProfile.NavMeshIndex, ToLocation, NavProfile);
 
 	float pStartPos[3] = { FromFloorLocation.x, FromFloorLocation.z, -FromFloorLocation.y };
 	float pEndPos[3] = { ToFloorLocation.x, ToFloorLocation.z, -ToFloorLocation.y };
@@ -6715,7 +6485,7 @@ void NAV_SetUseMovementTask(AvHAIPlayer* pBot, edict_t* EntityToUse, DynamicMapO
 	MoveTask->TaskType = MOVE_TASK_USE;
 	MoveTask->TaskTarget = EntityToUse;
 	MoveTask->TriggerToActivate = TriggerToActivate->Edict;
-	MoveTask->TaskLocation = UTIL_GetButtonFloorLocation(pBot->Edict->v.origin, EntityToUse);
+	MoveTask->TaskLocation = UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, EntityToUse);
 }
 
 void NAV_SetBreakMovementTask(AvHAIPlayer* pBot, edict_t* EntityToBreak, DynamicMapObject* TriggerToActivate)
@@ -6730,7 +6500,7 @@ void NAV_SetBreakMovementTask(AvHAIPlayer* pBot, edict_t* EntityToBreak, Dynamic
 	MoveTask->TaskTarget = EntityToBreak;
 	MoveTask->TriggerToActivate = TriggerToActivate->Edict;
 
-	MoveTask->TaskLocation = UTIL_GetButtonFloorLocation(pBot->Edict->v.origin, EntityToBreak);
+	MoveTask->TaskLocation = UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, EntityToBreak);
 }
 
 void NAV_ClearMovementTask(AvHAIPlayer* pBot)
@@ -6890,7 +6660,7 @@ vector<NavHint*> NAV_GetHintsOfType(unsigned int NavMeshIndex, unsigned int Hint
 
 	for (auto it = NavMeshes[NavMeshIndex].MeshHints.begin(); it != NavMeshes[NavMeshIndex].MeshHints.end(); it++)
 	{
-		if (HintType != 0 && !(it->hintType & HintType)) { continue; }
+		if (HintType != 0 && !(it->HintTypes & HintType)) { continue; }
 
 		Result.push_back(&(*it));
 	}
@@ -6910,7 +6680,7 @@ vector<NavHint*> NAV_GetHintsOfTypeInRadius(unsigned int NavMeshIndex, unsigned 
 
 	for (auto it = NavMeshes[NavMeshIndex].MeshHints.begin(); it != NavMeshes[NavMeshIndex].MeshHints.end(); it++)
 	{
-		if (HintType != 0 && !(it->hintType & HintType)) { continue; }
+		if (HintType != 0 && !(it->HintTypes & HintType)) { continue; }
 
 		if (vDist3DSq(it->Position, SearchLocation) < SearchRadius)
 		{
@@ -7173,6 +6943,56 @@ void NAV_OnDynamicMapObjectBecomeIdle(DynamicMapObject* Object)
 	}
 
 	// Door is not permanently blocking anything and can still be activated. We need to do a more nuanced take on how connections are modified
+	// The idea is that if a connection is one-way, we detect how we can activate the door from that side and modify the connection flag accordingly
+	// Two-way connections will end up being treated like a one-way connection, so use 2 one-way connections if a door requires different capabilities for each side!
+
+	int CurrStopIndex = (Object->NextStopIndex > 0) ? Object->NextStopIndex - 1 : Object->StopPoints.size() - 1;
+
+	NavAgentProfile TestProfile = GetBaseAgentProfile(NAV_PROFILE_DEFAULT);
+
+	for (auto it = Object->StopPoints[CurrStopIndex].AffectedConnections.begin(); it != Object->StopPoints[CurrStopIndex].AffectedConnections.end(); it++)
+	{
+		NavOffMeshConnection* ThisConnection = (*it);
+
+		TestProfile.NavMeshIndex = ThisConnection->NavMeshIndex;
+
+		DynamicMapObject* ThisTrigger = NAV_GetBestTriggerForObject(Object, ThisConnection->FromLocation, TestProfile);
+
+		if (!ThisTrigger)
+		{
+			NAV_ModifyOffMeshConnectionFlag(ThisConnection, NAV_FLAG_DISABLED);
+			continue;
+		}
+	}
+}
+
+DynamicMapObject* NAV_GetNearestTriggerForObjectReachableFromPoint(const NavAgentProfile& NavProfile, DynamicMapObject* ObjectToTrigger, Vector ActivateLocation)
+{
+	DynamicMapObject* Result = nullptr;
+	float MinDist = FLT_MAX;
+
+	for (auto it = ObjectToTrigger->Triggers.begin(); it != ObjectToTrigger->Triggers.end(); it++)
+	{
+		DynamicMapObject* ThisTriggerObject = UTIL_GetDynamicObjectByEdict(*it);
+
+		if (!ThisTriggerObject) { continue; }
+
+		Vector ButtonLocation = UTIL_GetButtonFloorLocation(NavProfile, ActivateLocation, ThisTriggerObject->Edict);
+
+		if (!UTIL_IsPathBlockedByObject(NavProfile, ActivateLocation, ButtonLocation, ObjectToTrigger))
+		{
+			// TODO: Update this to ensure door is always flat. Prevents angled doors messing things up
+			float ThisDist = vDist3DSq(ActivateLocation, ButtonLocation);
+
+			if (ThisDist < MinDist)
+			{
+				Result = ThisTriggerObject;
+				MinDist = ThisDist;
+			}
+		}
+	}
+
+	return Result;
 }
 
 void NAV_OnDynamicMapObjectStopIdle(DynamicMapObject* Object)
@@ -7187,14 +7007,29 @@ void NAV_OnDynamicMapObjectStopIdle(DynamicMapObject* Object)
 		}
 	}
 
-
-
 	for (auto it = Object->TempObstacles.begin(); it != Object->TempObstacles.end(); it++)
 	{
 		NAV_RemoveTemporaryObstacleFromNavmesh(*it);
 	}
 
 	Object->TempObstacles.clear();
+}
+
+void NAV_SetDynamicObjectStatus(DynamicMapObject* Object, DynamicMapObjectState NewState)
+{
+	if (NewState == Object->State) { return; }
+
+	Object->State = NewState;
+
+	if (NewState == OBJECTSTATE_MOVING)
+	{		
+		NAV_OnDynamicMapObjectStopIdle(Object);
+	}
+
+	if (NewState == OBJECTSTATE_IDLE)
+	{
+		NAV_OnDynamicMapObjectBecomeIdle(Object);
+	}
 }
 
 void NAV_UpdateDynamicMapObjects()
@@ -7209,8 +7044,7 @@ void NAV_UpdateDynamicMapObjects()
 			{
 				if (ThisObject->Edict->v.velocity.Length() <= 0.0f)
 				{
-					ThisObject->State = OBJECTSTATE_IDLE;
-					NAV_OnDynamicMapObjectBecomeIdle(ThisObject);
+					NAV_SetDynamicObjectStatus(ThisObject, OBJECTSTATE_IDLE);
 				}
 			}
 
@@ -7235,7 +7069,7 @@ void NAV_UpdateDynamicMapObjects()
 		if (ThisObject->Type == TRIGGER_MULTISOURCE)
 		{
 			ThisObject->bIsActive = true;
-			ThisObject->State = OBJECTSTATE_PREPARING;
+			NAV_SetDynamicObjectStatus(ThisObject, OBJECTSTATE_PREPARING);
 
 			for (auto triggerIt = ThisObject->Triggers.begin(); triggerIt != ThisObject->Triggers.end(); triggerIt++)
 			{
@@ -7275,7 +7109,7 @@ void NAV_UpdateDynamicMapObjects()
 
 		if (ThisObject->Type == TRIGGER_ENV || ThisObject->Type == TRIGGER_MULTISOURCE || ThisObject->Type == TRIGGER_NONE)
 		{
-			ThisObject->State = OBJECTSTATE_PREPARING;
+			NAV_SetDynamicObjectStatus(ThisObject, OBJECTSTATE_PREPARING);
 			it++;
 			continue;
 		}
@@ -7291,7 +7125,7 @@ void NAV_UpdateDynamicMapObjects()
 
 		if (ThisObject->Edict->v.velocity.Length() > 0.0f)
 		{
-			ThisObject->State = OBJECTSTATE_MOVING;
+			NAV_SetDynamicObjectStatus(ThisObject, OBJECTSTATE_MOVING);
 
 			if (ThisObject->StopPoints.size() > 0)
 			{
@@ -7323,6 +7157,13 @@ void NAV_UpdateDynamicMapObjects()
 
 			if (vEquals(ObjectCentre, NextStop.StopLocation, 1.0f))
 			{
+				ThisObject->NextStopIndex++;
+
+				if (ThisObject->NextStopIndex >= ThisObject->StopPoints.size())
+				{
+					ThisObject->NextStopIndex = 0;
+				}
+
 				if (NextStop.bWaitForRetrigger)
 				{
 					if (ThisObject->Type == MAPOBJECT_DOOR)
@@ -7333,26 +7174,18 @@ void NAV_UpdateDynamicMapObjects()
 						}
 						else
 						{
-							ThisObject->State = OBJECTSTATE_IDLE;
+							NAV_SetDynamicObjectStatus(ThisObject, OBJECTSTATE_IDLE);
 						}
 					}
 					else
 					{
-						ThisObject->State = OBJECTSTATE_IDLE;
-						NAV_OnDynamicMapObjectBecomeIdle(ThisObject);
+						NAV_SetDynamicObjectStatus(ThisObject, OBJECTSTATE_IDLE);
 					}
 					
 				}
 				else
 				{
 					ThisObject->State = OBJECTSTATE_PREPARING;
-				}
-
-				ThisObject->NextStopIndex++;
-
-				if (ThisObject->NextStopIndex >= ThisObject->StopPoints.size())
-				{
-					ThisObject->NextStopIndex = 0;
 				}
 			}
 			else
@@ -7382,12 +7215,11 @@ void NAV_UpdateDynamicMapObjects()
 
 				if (!bAtStop || NewStop.bWaitForRetrigger)
 				{
-					ThisObject->State = OBJECTSTATE_IDLE;
-					NAV_OnDynamicMapObjectBecomeIdle(ThisObject);
+					NAV_SetDynamicObjectStatus(ThisObject, OBJECTSTATE_IDLE);
 				}
 				else
 				{
-					ThisObject->State = OBJECTSTATE_PREPARING;
+					NAV_SetDynamicObjectStatus(ThisObject, OBJECTSTATE_PREPARING);
 				}
 			}
 
@@ -7399,7 +7231,7 @@ void NAV_UpdateDynamicMapObjects()
 		{
 			if (gpGlobals->time - ThisObject->LastActivatedTime >= ThisObject->Delay)
 			{
-				ThisObject->State = OBJECTSTATE_OPEN;
+				NAV_SetDynamicObjectStatus(ThisObject, OBJECTSTATE_OPEN);
 				ThisObject->LastActivatedTime = gpGlobals->time;
 				it++;
 				continue;
@@ -7410,8 +7242,7 @@ void NAV_UpdateDynamicMapObjects()
 		{
 			if (gpGlobals->time - ThisObject->LastActivatedTime >= ThisObject->Wait)
 			{
-				ThisObject->State = OBJECTSTATE_IDLE;
-				NAV_OnDynamicMapObjectBecomeIdle(ThisObject);
+				NAV_SetDynamicObjectStatus(ThisObject, OBJECTSTATE_IDLE);
 				it++;
 				continue;
 			}
@@ -8001,6 +7832,97 @@ DynamicMapObject* NAV_GetTriggerReachableFromPlatform(float LiftHeight, DynamicM
 	return nullptr;
 }
 
+DynamicMapObject* NAV_GetBestTriggerForObject(DynamicMapObject* ObjectToActivate, Vector ActivateLocation, const NavAgentProfile& NavProfile)
+{
+	if (ObjectToActivate->Triggers.size() == 0 || !ObjectToActivate || vIsZero(ActivateLocation)) { return nullptr; }
+
+	DynamicMapObject* WinningTrigger = nullptr;
+
+	Vector FromLoc = ActivateLocation;
+
+	float MinDist = FLT_MAX;
+
+	// This object is triggered by itself, such as a door set to USE_ONLY or a func_plat which needs to be touched to activate
+	if (ObjectToActivate->Triggers.size() == 1 && ObjectToActivate->Triggers[0] == ObjectToActivate->Edict) { return UTIL_GetDynamicObjectByEdict(ObjectToActivate->Triggers[0]); }
+
+	for (auto it = ObjectToActivate->Triggers.begin(); it != ObjectToActivate->Triggers.end(); it++)
+	{
+		DynamicMapObject* ThisTrigger = UTIL_GetDynamicObjectByEdict((*it));
+
+		if (!ThisTrigger || !ThisTrigger->bIsActive) { continue; }
+
+		// For triggers we can activate from a distance and are in our LOS, short-cut and add them to the list
+		if (ThisTrigger->Type == TRIGGER_SHOOT || ThisTrigger->Type == TRIGGER_BREAK)
+		{
+			TraceResult hit;
+
+			UTIL_TraceLine(ActivateLocation + Vector(0.0f, 0.0f, 5.0f), UTIL_GetCentreOfEntity(ThisTrigger->Edict), ignore_monsters, ignore_glass, nullptr, &hit);
+
+			if (hit.pHit == ThisTrigger->Edict)
+			{
+				float ThisDist = vDist3DSq(FromLoc, UTIL_GetCentreOfEntity(ThisTrigger->Edict));
+
+				if (ThisDist < MinDist)
+				{
+					WinningTrigger = ThisTrigger;
+					MinDist = ThisDist;
+				}
+
+				continue;
+			}
+		}
+
+		Vector TriggerLocation = UTIL_GetButtonFloorLocation(NavProfile, FromLoc, ThisTrigger->Edict);
+
+		if (vIsZero(TriggerLocation))
+		{
+			TriggerLocation = UTIL_GetClosestPointOnEntityToLocation(FromLoc, ThisTrigger->Edict);
+		}
+
+		float MaxDist = (ThisTrigger->Type == TRIGGER_BREAK || ThisTrigger->Type == TRIGGER_SHOOT) ? UTIL_MetresToGoldSrcUnits(5.0f) : 64.0f;
+
+		if (!UTIL_PointIsReachable(NavProfile, FromLoc, TriggerLocation, MaxDist)) { continue; }
+
+		if (ObjectToActivate->Type != MAPOBJECT_PLATFORM)
+		{
+			if (UTIL_IsPathBlockedByObject(NavProfile, FromLoc, TriggerLocation, ObjectToActivate)) { continue; }
+		}
+		else
+		{
+			vector<bot_path_node> CheckPath;
+
+			dtStatus PathFindStatus = FindPathClosestToPoint(NavProfile, FromLoc, TriggerLocation, CheckPath, MaxDist);
+
+			if (!dtStatusSucceed(PathFindStatus)) { continue; }
+
+			bool bOtherSideOfLift = false;
+
+			for (auto pathIt = CheckPath.begin(); pathIt != CheckPath.end(); pathIt++)
+			{
+				if (pathIt->flag & NAV_FLAG_PLATFORM)
+				{
+					if (UTIL_GetClosestPlatformToPoints(pathIt->FromLocation, pathIt->Location) == ObjectToActivate)
+					{
+						bOtherSideOfLift = true;
+						break;
+					}
+				}
+			}
+
+			if (bOtherSideOfLift) { continue; }
+		}
+
+		float ThisDist = vDist3DSq(FromLoc, TriggerLocation);
+
+		if (ThisDist < MinDist)
+		{
+			WinningTrigger = ThisTrigger;
+		}
+	}
+
+	return WinningTrigger;
+}
+
 DynamicMapObject* NAV_GetBestTriggerForObject(DynamicMapObject* ObjectToActivate, edict_t* PlayerToTrigger, const NavAgentProfile& NavProfile)
 {
 	if (ObjectToActivate->Triggers.size() == 0 || !ObjectToActivate || FNullEnt(PlayerToTrigger)) { return nullptr; }
@@ -8011,7 +7933,7 @@ DynamicMapObject* NAV_GetBestTriggerForObject(DynamicMapObject* ObjectToActivate
 
 	float MinDist = FLT_MAX;
 
-	// This object is triggered by itself, either a door set to USE_ONLY or a func_plat which needs to be touched to activate
+	// This object is triggered by itself, such as a door set to USE_ONLY or a func_plat which needs to be touched to activate
 	if (ObjectToActivate->Triggers.size() == 1 && ObjectToActivate->Triggers[0] == ObjectToActivate->Edict) { return UTIL_GetDynamicObjectByEdict(ObjectToActivate->Triggers[0]); }
 
 	for (auto it = ObjectToActivate->Triggers.begin(); it != ObjectToActivate->Triggers.end(); it++)
@@ -8037,7 +7959,7 @@ DynamicMapObject* NAV_GetBestTriggerForObject(DynamicMapObject* ObjectToActivate
 			}
 		}
 
-		Vector TriggerLocation = UTIL_GetButtonFloorLocation(FromLoc, ThisTrigger->Edict);
+		Vector TriggerLocation = UTIL_GetButtonFloorLocation(NavProfile, FromLoc, ThisTrigger->Edict);
 
 		if (vIsZero(TriggerLocation))
 		{
@@ -8050,7 +7972,7 @@ DynamicMapObject* NAV_GetBestTriggerForObject(DynamicMapObject* ObjectToActivate
 
 		if (ObjectToActivate->Type != MAPOBJECT_PLATFORM)
 		{
-			if (UTIL_IsPathBlockedByObject(FromLoc, TriggerLocation, ObjectToActivate)) { continue; }
+			if (UTIL_IsPathBlockedByObject(NavProfile, FromLoc, TriggerLocation, ObjectToActivate)) { continue; }
 		}
 		else
 		{
@@ -8240,7 +8162,7 @@ void DEBUG_PrintObjectInfo(DynamicMapObject* Object)
 
 	if (BestTrigger)
 	{
-		UTIL_DrawLine(AIMGR_GetListenServerEdict(), AIMGR_GetListenServerEdict()->v.origin, UTIL_GetButtonFloorLocation(AIMGR_GetListenServerEdict()->v.origin, BestTrigger->Edict), 0, 128, 0);
+		UTIL_DrawLine(AIMGR_GetListenServerEdict(), AIMGR_GetListenServerEdict()->v.origin, UTIL_GetButtonFloorLocation(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), AIMGR_GetListenServerEdict()->v.origin, BestTrigger->Edict), 0, 128, 0);
 	}
 
 	if (AIMGR_GetListenServerEdict()->v.groundentity == Object->Edict)

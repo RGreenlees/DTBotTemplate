@@ -215,7 +215,7 @@ void CheckAndHandleBreakableObstruction(AvHAIPlayer* pBot, const Vector MoveFrom
 void CheckAndHandleDoorObstruction(AvHAIPlayer* pBot);
 
 DynamicMapObject* UTIL_GetNearestObjectTrigger(const Vector Location, DynamicMapObject* Object, edict_t* IgnoreTrigger, bool bCheckBlockedByDoor);
-bool UTIL_IsPathBlockedByObject(const Vector StartLoc, const Vector EndLoc, DynamicMapObject* SearchObject);
+bool UTIL_IsPathBlockedByObject(const NavAgentProfile& NavProfile, const Vector StartLoc, const Vector EndLoc, DynamicMapObject* SearchObject);
 
 DynamicMapObject* UTIL_GetObjectBlockingPathPoint(bot_path_node* PathNode, DynamicMapObject* SearchObject);
 DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned int MovementFlag, DynamicMapObject* SearchObject);
@@ -223,7 +223,7 @@ edict_t* UTIL_GetBreakableBlockingPathPoint(bot_path_node* PathNode, edict_t* Se
 edict_t* UTIL_GetBreakableBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned int MovementFlag, edict_t* SearchBreakable);
 
 
-Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdict);
+Vector UTIL_GetButtonFloorLocation(const NavAgentProfile& NavProfile, const Vector UserLocation, edict_t* ButtonEdict);
 
 // Clears all tracking of a bot's stuck status
 void ClearBotStuck(AvHAIPlayer* pBot);
@@ -300,8 +300,7 @@ void MoveToWithoutNav(AvHAIPlayer* pBot, const Vector Destination);
 // Check if there are any players in our way and try to move around them. If we can't, then back up to let them through
 void HandlePlayerAvoidance(AvHAIPlayer* pBot, const Vector MoveDestination);
 
-Vector AdjustPointForPathfinding(const Vector Point);
-Vector AdjustPointForPathfinding(const Vector Point, const NavAgentProfile& NavProfile);
+Vector AdjustPointForPathfinding(unsigned int NavMeshIndex, const Vector Point, const NavAgentProfile& NavProfile = GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
 
 // Special path finding that takes the presence of phase gates into account 
 dtStatus FindFlightPathToPoint(const NavAgentProfile& NavProfile, Vector FromLocation, Vector ToLocation, std::vector<bot_path_node>& path, float MaxAcceptableDistance);
@@ -359,11 +358,7 @@ void UTIL_TraceNavLine(const NavAgentProfile& NavProfile, const Vector Start, co
 	Uses pExtents by default if not supplying one.
 	Returns ZERO_VECTOR if not projected successfully
 */
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents = Vector(400.0f, 400.0f, 400.0f));
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const NavAgentProfile& NavProfile);
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, const NavAgentProfile& NavProfile);
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const int NavmeshIndex);
-Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, const int NavmeshIndex);
+Vector UTIL_ProjectPointToNavmesh(const int NavmeshIndex, const Vector Location, const NavAgentProfile& NavProfile = GetBaseAgentProfile(NAV_PROFILE_DEFAULT), const Vector Extents = Vector(400.0f, 400.0f, 400.0f));
 
 /*
 	Point is on navmesh:
@@ -468,6 +463,7 @@ void NAV_SetPrototypeTriggerState(int EntityIndex, char* Value);
 void NAV_SetPrototypeTriggerMode(int EntityIndex, char* Value);
 void NAV_AddPrototypeTarget(int EntityIndex, char* Value);
 
+void NAV_SetDynamicObjectStatus(DynamicMapObject* Object, DynamicMapObjectState NewState);
 void NAV_OnDynamicMapObjectBecomeIdle(DynamicMapObject* Object);
 void NAV_OnDynamicMapObjectStopIdle(DynamicMapObject* Object);
 
@@ -478,6 +474,12 @@ void NAV_OnTriggerActivated(DynamicMapObject* UsedObject);
 DynamicMapObject* NAV_GetTriggerByEdict(edict_t* Edict);
 
 DynamicMapObject* NAV_GetBestTriggerForObject(DynamicMapObject* ObjectToActivate, edict_t* PlayerToTrigger, const NavAgentProfile& NavProfile);
+DynamicMapObject* NAV_GetBestTriggerForObject(DynamicMapObject* ObjectToActivate, Vector ActivateLocation, const NavAgentProfile& NavProfile);
+
+// Retrieves the nearest trigger for the ObjectToTrigger. Will NOT return a trigger if it requires going through the ObjectToTrigger to reach it.
+DynamicMapObject* NAV_GetNearestTriggerForObjectReachableFromPoint(const NavAgentProfile& NavProfile, DynamicMapObject* ObjectToTrigger, Vector ActivateLocation);
+
+
 DynamicMapObject* NAV_GetTriggerReachableFromPlatform(float LiftHeight, DynamicMapObject* Platform, const Vector PlatformPosition = ZERO_VECTOR);
 
 bool NAV_IsDynamicMapTriggerLinkedToObject(DynamicMapObject* TriggerObject, DynamicMapObject* TargetObject, std::vector<DynamicMapObject*> CheckedObjects);

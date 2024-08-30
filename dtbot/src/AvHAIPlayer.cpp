@@ -754,7 +754,7 @@ void StartNewBotFrame(AvHAIPlayer* pBot)
 	{
 		if (UTIL_PointIsReachable(pBot->BotNavInfo.NavProfile, pBot->SpawnLocation, ProjectPoint, 16.0f))
 		{
-			Vector NavPoint = UTIL_ProjectPointToNavmesh(ProjectPoint);
+			Vector NavPoint = UTIL_ProjectPointToNavmesh(pBot->BotNavInfo.NavProfile.NavMeshIndex, ProjectPoint, pBot->BotNavInfo.NavProfile);
 			UTIL_AdjustPointAwayFromNavWall(NavPoint, 8.0f);
 
 			pBot->BotNavInfo.LastNavMeshPosition = NavPoint;

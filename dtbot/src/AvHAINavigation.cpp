@@ -1469,11 +1469,11 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 		{
 			FromLocation = LiftEnd;
 
-			NavOffMeshConnection* LiftOffMesh = UTIL_GetOffMeshConnectionForPlatform(pBot->BotNavInfo.NavProfile, LiftReference);
+			NavOffMeshConnection LiftOffMesh = UTIL_GetOffMeshConnectionForPlatform(pBot->BotNavInfo.NavProfile, LiftReference);
 
-			if (LiftOffMesh)
+			if (LiftOffMesh.IsValid())
 			{
-				LiftStart = (vEquals(LiftEnd, LiftOffMesh->ToLocation, 5.0f)) ? LiftOffMesh->FromLocation : LiftOffMesh->ToLocation;
+				LiftStart = (vEquals(LiftEnd, LiftOffMesh.ToLocation, 5.0f)) ? LiftOffMesh.FromLocation : LiftOffMesh.ToLocation;
 				bMustDisembarkLiftFirst = true;
 				FromFloorLocation = LiftEnd;
 			}
@@ -1745,9 +1745,11 @@ DynamicMapObject* UTIL_GetLiftReferenceByEdict(const edict_t* SearchEdict)
 	return nullptr;
 }
 
-NavOffMeshConnection* UTIL_GetOffMeshConnectionForPlatform(const NavAgentProfile& NavProfile, DynamicMapObject* LiftRef)
+NavOffMeshConnection UTIL_GetOffMeshConnectionForPlatform(const NavAgentProfile& NavProfile, DynamicMapObject* LiftRef)
 {
-	if (!LiftRef) { return nullptr; }
+	NavOffMeshConnection Result;
+
+	if (!LiftRef) { return Result; }
 
 	NavOffMeshConnection* NearestConnection = nullptr;
 	float MinDist = 0.0f;
@@ -1760,11 +1762,11 @@ NavOffMeshConnection* UTIL_GetOffMeshConnectionForPlatform(const NavAgentProfile
 
 		if (it->LinkedObject == LiftRef->Edict)
 		{
-			return &(*it);
+			return (*it);
 		}
 	}
 
-	return NearestConnection;
+	return Result;
 }
 
 bool UTIL_PointIsReachable(const NavAgentProfile &NavProfile, const Vector FromLocation, const Vector ToLocation, const float MaxAcceptableDistance)

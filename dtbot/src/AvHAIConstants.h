@@ -106,6 +106,11 @@ typedef struct _OFF_MESH_CONN
 	unsigned int DefaultConnectionFlags = 0; // If this connection is being temporarily modified, what it should normally be
 	unsigned int ConnectionRef; // References to this connection on all defined nav meshes
 	edict_t* LinkedObject = nullptr;
+
+	bool IsValid()
+	{
+		return !vIsZero(FromLocation) && !vIsZero(ToLocation);
+	}
 } NavOffMeshConnection;
 
 typedef struct _TEMPORARY_OBSTACLE

@@ -4,17 +4,14 @@
 #include "DetourStatus.h"
 #include "DetourNavMesh.h"
 
-#include <vector>
-
 typedef unsigned int dtObstacleRef;
-typedef unsigned int dtOffMeshConnectionRef;
-
 typedef unsigned int dtCompressedTileRef;
+typedef unsigned int dtOffMeshConnectionRef;
 
 /// Flags for addTile
 enum dtCompressedTileFlags
 {
-	DT_COMPRESSEDTILE_FREE_DATA = 0x01,					///< Navmesh owns the tile memory and should free it.
+	DT_COMPRESSEDTILE_FREE_DATA = 0x01	///< Navmesh owns the tile memory and should free it.
 };
 
 struct dtCompressedTile
@@ -34,14 +31,14 @@ enum ObstacleState
 	DT_OBSTACLE_EMPTY,
 	DT_OBSTACLE_PROCESSING,
 	DT_OBSTACLE_PROCESSED,
-	DT_OBSTACLE_REMOVING,
+	DT_OBSTACLE_REMOVING
 };
 
 enum ObstacleType
 {
 	DT_OBSTACLE_CYLINDER,
 	DT_OBSTACLE_BOX, // AABB
-	DT_OBSTACLE_ORIENTED_BOX, // OBB
+	DT_OBSTACLE_ORIENTED_BOX // OBB
 };
 
 struct dtObstacleCylinder
@@ -56,7 +53,6 @@ struct dtObstacleBox
 {
 	float bmin[ 3 ];
 	float bmax[ 3 ];
-	int area;
 };
 
 struct dtObstacleOrientedBox
@@ -64,7 +60,6 @@ struct dtObstacleOrientedBox
 	float center[ 3 ];
 	float halfExtents[ 3 ];
 	float rotAux[ 2 ]; //{ cos(0.5f*angle)*sin(-0.5f*angle); cos(0.5f*angle)*cos(0.5f*angle) - 0.5 }
-	int area;
 };
 
 static const int DT_MAX_TOUCHED_TILES = 8;
@@ -93,9 +88,9 @@ struct dtTileCacheParams
 	float cs, ch;
 	int width, height;
 	float walkableHeight;
+	float crouchHeight;
 	float walkableRadius;
 	float walkableClimb;
-	float walkableSlope;
 	float maxSimplificationError;
 	int maxTiles;
 	int maxObstacles;
@@ -104,14 +99,9 @@ struct dtTileCacheParams
 
 struct dtTileCacheMeshProcess
 {
-	virtual ~dtTileCacheMeshProcess() { }
-
-	virtual void process(struct dtNavMeshCreateParams* params,
-						 unsigned char* polyAreas, unsigned int* polyFlags) = 0;
-
-
+	virtual ~dtTileCacheMeshProcess();
+	virtual void process(struct dtNavMeshCreateParams* params, unsigned char* polyAreas, unsigned int* polyFlags) = 0;
 };
-
 
 class dtTileCache
 {
@@ -121,9 +111,7 @@ public:
 	
 	struct dtTileCacheAlloc* getAlloc() { return m_talloc; }
 	struct dtTileCacheCompressor* getCompressor() { return m_tcomp; }
-	struct dtTileCacheMeshProcess* getMeshProcess() { return m_tmproc; }
 	const dtTileCacheParams* getParams() const { return &m_params; }
-
 	
 	inline int getTileCount() const { return m_params.maxTiles; }
 	inline const dtCompressedTile* getTile(const int i) const { return &m_tiles[i]; }
@@ -131,10 +119,10 @@ public:
 	inline int getOffMeshCount() const { return m_params.maxOffMeshConnections; }
 	inline int getObstacleCount() const { return m_params.maxObstacles; }
 	inline const dtTileCacheObstacle* getObstacle(const int i) const { return &m_obstacles[i]; }
-	inline const dtOffMeshConnection* getOffMeshConnection(const int i) const { return &m_offMeshConnections[i]; }
+	inline dtOffMeshConnection* getOffMeshConnection(const int i) const { return &m_offMeshConnections[i]; }
 	
 	const dtTileCacheObstacle* getObstacleByRef(dtObstacleRef ref);
-	dtOffMeshConnection* getOffMeshConnectionByRef(dtOffMeshConnectionRef ref);
+	dtOffMeshConnection* dtTileCache::getOffMeshConnectionByRef(dtOffMeshConnectionRef ref);
 	
 	dtObstacleRef getObstacleRef(const dtTileCacheObstacle* obmin) const;
 	dtOffMeshConnectionRef getOffMeshRef(const dtOffMeshConnection* con) const;
@@ -157,9 +145,6 @@ public:
 	// Cylinder obstacle.
 	dtStatus addObstacle(const float* pos, const float radius, const float height, const int area, dtObstacleRef* result);
 
-	dtStatus addOffMeshConnection(const float* spos, const float* epos, const float radius, const unsigned char area, const unsigned int flags, const bool bBiDirectional, dtOffMeshConnectionRef* result);
-	dtStatus modifyOffMeshConnection(dtOffMeshConnectionRef ConRef, const unsigned int newFlag);
-
 	// Aabb obstacle.
 	dtStatus addBoxObstacle(const float* bmin, const float* bmax, dtObstacleRef* result);
 
@@ -168,6 +153,9 @@ public:
 	
 	dtStatus removeObstacle(const dtObstacleRef ref);
 	dtStatus removeOffMeshConnection(const dtOffMeshConnectionRef ref);
+
+	dtStatus addOffMeshConnection(const float* spos, const float* epos, const float radius, const unsigned char area, const unsigned int flags, const bool bBiDirectional, dtOffMeshConnectionRef* result);
+	dtStatus modifyOffMeshConnection(dtOffMeshConnectionRef ConRef, const unsigned int newFlag);
 	
 	dtStatus queryTiles(const float* bmin, const float* bmax,
 						dtCompressedTileRef* results, int* resultCount, const int maxResults) const;
@@ -181,7 +169,7 @@ public:
 	dtStatus update(const float dt, class dtNavMesh* navmesh, bool* upToDate = 0);
 	
 	dtStatus buildNavMeshTilesAt(const int tx, const int ty, class dtNavMesh* navmesh);
-		
+	
 	dtStatus buildNavMeshTile(const dtCompressedTileRef ref, class dtNavMesh* navmesh);
 	
 	void calcTightTileBounds(const struct dtTileCacheLayerHeader* header, float* bmin, float* bmax) const;
@@ -256,7 +244,7 @@ private:
 	enum ObstacleRequestAction
 	{
 		REQUEST_ADD,
-		REQUEST_REMOVE,
+		REQUEST_REMOVE
 	};
 
 	enum OffMeshRequestAction
@@ -300,14 +288,14 @@ private:
 	dtOffMeshConnection* m_offMeshConnections;
 	dtOffMeshConnection* m_nextFreeOffMeshConnection;
 	
-	static const int MAX_REQUESTS = 512;
+	static const int MAX_REQUESTS = 64;
 	ObstacleRequest m_reqs[MAX_REQUESTS];
 	int m_nreqs;
 
 	OffMeshRequest m_OffMeshReqs[MAX_REQUESTS];
 	int m_nOffMeshReqs;
 	
-	static const int MAX_UPDATE = 512;
+	static const int MAX_UPDATE = 64;
 	dtCompressedTileRef m_update[MAX_UPDATE];
 	int m_nupdate;
 };

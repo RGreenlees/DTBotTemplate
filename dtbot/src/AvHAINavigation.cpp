@@ -1564,7 +1564,7 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 		StartPathNode.FromLocation = LiftStart;
 		StartPathNode.Location = LiftEnd;
 		StartPathNode.flag = NAV_FLAG_PLATFORM;
-		StartPathNode.area = NAV_FLAG_PLATFORM;
+		StartPathNode.area = NAV_AREA_WALK;
 
 		path.push_back(StartPathNode);
 
@@ -3219,6 +3219,7 @@ void BoardPlatformMove(AvHAIPlayer* pBot, const Vector EmbarkPoint, DynamicMapOb
 
 	if (vEquals2D(ClosestPointOnLine, EmbarkPoint) && vDist2DSq(pBot->Edict->v.origin, EmbarkPoint) > sqrf(32.0f))
 	{
+		UTIL_DrawLine(INDEXENT(1), EmbarkPoint, EmbarkPoint + Vector(0.0f, 0.0f, 100.0f), 10.0f);
 		NAV_SetMoveMovementTask(pBot, EmbarkPoint, nullptr);
 	}
 	else
@@ -3431,7 +3432,9 @@ bool IsBotOffWalkNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd,
 {
 	if (!pBot->BotNavInfo.IsOnGround) { return false; }
 
-	Vector NearestPointOnLine = vClosestPointOnLine2D(MoveStart, MoveEnd, pBot->Edict->v.origin);
+	Vector NearestPointOnLine = vClosestPointOnLine(MoveStart, MoveEnd, pBot->Edict->v.origin);
+
+	if (vPointOverlaps3D(NearestPointOnLine, pBot->Edict->v.absmin, pBot->Edict->v.absmax)) { return false; }
 
 	if (vDist2DSq(pBot->Edict->v.origin, NearestPointOnLine) > sqrf(GetPlayerRadius(pBot->Edict) * 3.0f)) { return true; }
 
@@ -5110,7 +5113,7 @@ void BotFollowSwimPath(AvHAIPlayer* pBot)
 	bool TargetPointIsInWater = (UTIL_PointContents(CurrentPathPoint->Location) == CONTENTS_WATER || UTIL_PointContents(CurrentPathPoint->Location) == CONTENTS_SLIME);
 
 	bool bHasNextPoint = (next(CurrentPathPoint) != BotNavInfo->CurrentPath.end());
-	bool NextPointInWater = (bHasNextPoint) ? UTIL_PointContents(next(CurrentPathPoint)->Location) == CONTENTS_WATER : TargetPointIsInWater;
+	bool NextPointInWater = TargetPointIsInWater;//(bHasNextPoint) ? UTIL_PointContents(next(CurrentPathPoint)->Location) == CONTENTS_WATER : TargetPointIsInWater;
 
 	bool bShouldSurface = (bHasNextPoint && !NextPointInWater && vDist2DSq(pEdict->v.origin, next(CurrentPathPoint)->FromLocation) < sqrf(100.0f));
 
@@ -5163,7 +5166,7 @@ void BotFollowSwimPath(AvHAIPlayer* pBot)
 				}
 
 				BotMoveLookAt(pBot, LadderMountPoint);
-				pBot->desiredMovementDir = UTIL_GetVectorNormal2D(LadderMountPoint - pEdict->v.origin);
+				pBot->desiredMovementDir = UTIL_GetForwardVector2D(pBot->Edict->v.v_angle);
 
 				return;
 			}

@@ -236,8 +236,8 @@ typedef struct _BOT_PATH_NODE
 	Vector FromLocation = ZERO_VECTOR; // Location to move from
 	Vector Location = ZERO_VECTOR; // Location to move to
 	float requiredZ = 0.0f; // If climbing a up ladder or wall, how high should they aim to get before dismounting.
-	unsigned int flag = 0; // Is this a ladder movement, wall climb, walk etc
-	unsigned char area = 0; // Is this a crouch area, normal walking area etc
+	unsigned int flag = NAV_FLAG_DISABLED; // Is this a ladder movement, wall climb, walk etc
+	unsigned char area = NAV_AREA_UNWALKABLE; // Is this a crouch area, normal walking area etc
 	unsigned int poly = 0; // The nav mesh poly this point resides on
 	edict_t* Platform = nullptr;
 } bot_path_node;

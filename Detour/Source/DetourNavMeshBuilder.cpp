@@ -298,7 +298,7 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 	
 	if (params->NumOffMeshConnections > 0)
 	{
-		offMeshConClass = (unsigned char*)dtAlloc(sizeof(unsigned char)*params->offMeshConCount*2, DT_ALLOC_TEMP);
+		offMeshConClass = (unsigned char*)dtAlloc(sizeof(unsigned char) * params->offMeshConCount * 2, DT_ALLOC_TEMP);
 		if (!offMeshConClass)
 			return false;
 
@@ -306,10 +306,10 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 		{
 			dtOffMeshConnection* con = &params->GlobalOffMeshConnections[i];
 
-			if (con->state == DT_OFFMESH_EMPTY || con->state == DT_OFFMESH_REMOVING) { continue; }
+			if (!con || con->state == DT_OFFMESH_EMPTY || con->state == DT_OFFMESH_REMOVING) { continue; }
 
 			bool bOriginates = (con->FromTileX == params->tileX && con->FromTileY == params->tileY && con->FromTileLayer == params->tileLayer);
-			bool bTargets	 = (con->ToTileX == params->tileX && con->ToTileY == params->tileY && con->ToTileLayer == params->tileLayer);
+			bool bTargets = (con->ToTileX == params->tileX && con->ToTileY == params->tileY && con->ToTileLayer == params->tileLayer);
 
 			if (bOriginates)
 			{
@@ -322,11 +322,11 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 			{
 				con->state = DT_OFFMESH_DIRTY;
 				offMeshConLinkCount++;
-			}	
+			}
 		}
 	}
 	
-	// Off-mesh connectionss are stored as polygons, adjust values.
+	// Off-mesh connections are stored as polygons, adjust values.
 	const int totPolyCount = params->polyCount + storedOffMeshConCount;
 	const int totVertCount = params->vertCount + storedOffMeshConCount*2;
 	
@@ -475,7 +475,7 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 		if (con->FromTileX == params->tileX && con->FromTileY == params->tileY && con->FromTileLayer == params->tileLayer)
 		{
 			const float* linkv = &con->pos[0];
-			float* v = &navVerts[(offMeshVertsBase + n*2)*3];
+			float* v = &navVerts[(offMeshVertsBase + n * 2) * 3];
 			dtVcopy(&v[0], &linkv[0]);
 			dtVcopy(&v[3], &linkv[3]);
 			n++;
@@ -516,7 +516,7 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 				// Normal connection
 				p->neis[j] = src[nvp+j]+1;
 			}
-
+			
 			p->vertCount++;
 		}
 		src += nvp*2;
@@ -532,10 +532,10 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 		// Only store connections which start from this tile.
 		if (con->FromTileX == params->tileX && con->FromTileY == params->tileY && con->FromTileLayer == params->tileLayer)
 		{
-			dtPoly* p = &navPolys[offMeshPolyBase+n];
+			dtPoly* p = &navPolys[offMeshPolyBase + n];
 			p->vertCount = 2;
-			p->verts[0] = (unsigned short)(offMeshVertsBase + n*2+0);
-			p->verts[1] = (unsigned short)(offMeshVertsBase + n*2+1);
+			p->verts[0] = (unsigned short)(offMeshVertsBase + n * 2 + 0);
+			p->verts[1] = (unsigned short)(offMeshVertsBase + n * 2 + 1);
 			p->flags = con->flags;
 			p->setArea(con->area);
 			p->setType(DT_POLYTYPE_OFFMESH_CONNECTION);
@@ -602,7 +602,7 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 	{
 		createBVTree(params, navBvtree, 2*params->polyCount);
 	}
-
+	
 	n = 0;
 	for (int i = 0; i < params->NumOffMeshConnections; i++)
 	{
@@ -679,10 +679,10 @@ bool dtNavMeshHeaderSwapEndian(unsigned char* data, const int /*dataSize*/)
 
 /// @par
 ///
-/// @warning This function assumes that the header is in the correct endianess already. 
-/// Call #dtNavMeshHeaderSwapEndian() first on the data if the data is expected to be in wrong endianess 
+/// @warning This function assumes that the header is in the correct endianness already. 
+/// Call #dtNavMeshHeaderSwapEndian() first on the data if the data is expected to be in wrong endianness 
 /// to start with. Call #dtNavMeshHeaderSwapEndian() after the data has been swapped if converting from 
-/// native to foreign endianess.
+/// native to foreign endianness.
 bool dtNavMeshDataSwapEndian(unsigned char* data, const int /*dataSize*/)
 {
 	// Make sure the data is in right format.

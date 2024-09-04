@@ -22,7 +22,7 @@
 #include "DetourAlloc.h"
 #include "DetourStatus.h"
 
-// Undefine (or define in a build cofnig) the following line to use 64bit polyref.
+// Undefine (or define in a build config) the following line to use 64bit polyref.
 // Generally not needed, useful for very large worlds.
 // Note: tiles build using 32bit refs are not compatible with 64bit refs!
 //#define DT_POLYREF64 1
@@ -99,7 +99,7 @@ static const int DT_MAX_AREAS = 64;
 enum dtTileFlags
 {
 	/// The navigation mesh owns the tile memory and is responsible for freeing it.
-	DT_TILE_FREE_DATA = 0x01,
+	DT_TILE_FREE_DATA = 0x01
 };
 
 /// Vertex flags returned by dtNavMeshQuery::findStraightPath.
@@ -107,32 +107,32 @@ enum dtStraightPathFlags
 {
 	DT_STRAIGHTPATH_START = 0x01,				///< The vertex is the start position in the path.
 	DT_STRAIGHTPATH_END = 0x02,					///< The vertex is the end position in the path.
-	DT_STRAIGHTPATH_OFFMESH_CONNECTION = 0x04,	///< The vertex is the start of an off-mesh connection.
+	DT_STRAIGHTPATH_OFFMESH_CONNECTION = 0x04	///< The vertex is the start of an off-mesh connection.
 };
 
 /// Options for dtNavMeshQuery::findStraightPath.
 enum dtStraightPathOptions
 {
 	DT_STRAIGHTPATH_AREA_CROSSINGS = 0x01,	///< Add a vertex at every polygon edge crossing where area changes.
-	DT_STRAIGHTPATH_ALL_CROSSINGS = 0x02,	///< Add a vertex at every polygon edge crossing.
+	DT_STRAIGHTPATH_ALL_CROSSINGS = 0x02	///< Add a vertex at every polygon edge crossing.
 };
 
 
 /// Options for dtNavMeshQuery::initSlicedFindPath and updateSlicedFindPath
 enum dtFindPathOptions
 {
-	DT_FINDPATH_ANY_ANGLE	= 0x02,		///< use raycasts during pathfind to "shortcut" (raycast still consider costs)
+	DT_FINDPATH_ANY_ANGLE	= 0x02		///< use raycasts during pathfind to "shortcut" (raycast still consider costs)
 };
 
 /// Options for dtNavMeshQuery::raycast
 enum dtRaycastOptions
 {
-	DT_RAYCAST_USE_COSTS = 0x01,		///< Raycast should calculate movement cost along the ray and fill RaycastHit::cost
+	DT_RAYCAST_USE_COSTS = 0x01		///< Raycast should calculate movement cost along the ray and fill RaycastHit::cost
 };
 
 enum dtDetailTriEdgeFlags
 {
-	DT_DETAIL_EDGE_BOUNDARY = 0x01,		///< Detail triangle edge is part of the poly boundary
+	DT_DETAIL_EDGE_BOUNDARY = 0x01		///< Detail triangle edge is part of the poly boundary
 };
 
 
@@ -146,7 +146,7 @@ enum dtPolyTypes
 	/// The polygon is a standard convex polygon that is part of the surface of the mesh.
 	DT_POLYTYPE_GROUND = 0,
 	/// The polygon is an off-mesh connection consisting of two vertices.
-	DT_POLYTYPE_OFFMESH_CONNECTION = 1,
+	DT_POLYTYPE_OFFMESH_CONNECTION = 1
 };
 
 enum OffMeshState
@@ -157,6 +157,7 @@ enum OffMeshState
 	DT_OFFMESH_CLEAN,
 	DT_OFFMESH_REMOVING,
 };
+
 
 /// Defines a polygon within a dtMeshTile object.
 /// @ingroup detour
@@ -179,7 +180,7 @@ struct dtPoly
 	unsigned char vertCount;
 
 	/// The bit packed area id and polygon type.
-	/// @note Use the structure's set and get methods to acess this value.
+	/// @note Use the structure's set and get methods to access this value.
 	unsigned char areaAndtype;
 
 	/// Sets the user defined area id. [Limit: < #DT_MAX_AREAS]
@@ -190,8 +191,6 @@ struct dtPoly
 
 	/// Gets the user defined area id.
 	inline unsigned char getArea() const { return areaAndtype & 0x3f; }
-
-	inline unsigned int getFlags() const { return flags; }
 
 	/// Gets the polygon type. (See: #dtPolyTypes)
 	inline unsigned char getType() const { return areaAndtype >> 6; }
@@ -217,7 +216,7 @@ struct dtLink
 	unsigned char side;				///< If a boundary link, defines on which side the link is.
 	unsigned char bmin;				///< If a boundary link, defines the minimum sub-edge area.
 	unsigned char bmax;				///< If a boundary link, defines the maximum sub-edge area.
-	int OffMeshID = -1;			///< If an off-mesh connection, this will be the UserID of the connection that made this link
+	int OffMeshID = -1;				///< If an off-mesh connection, this will be the UserID of the connection that made this link
 };
 
 /// Bounding volume node.
@@ -297,7 +296,6 @@ struct dtMeshHeader
 	int detailTriCount;			///< The number of triangles in the detail mesh.
 	int bvNodeCount;			///< The number of bounding volume nodes. (Zero if bounding volumes are disabled.)
 	int offMeshConCount;		///< The number of off-mesh connections.
-
 	int offMeshBase;			///< The index of the first polygon which is an off-mesh connection.
 	float walkableHeight;		///< The height of the agents using the tile.
 	float walkableRadius;		///< The radius of the agents using the tile.
@@ -318,7 +316,7 @@ struct dtMeshTile
 	unsigned int linksFreeList;			///< Index to the next free link.
 	dtMeshHeader* header;				///< The tile header.
 	dtPoly* polys;						///< The tile polygons. [Size: dtMeshHeader::polyCount]
-	float* verts;						///< The tile vertices. [Size: dtMeshHeader::vertCount]
+	float* verts;						///< The tile vertices. [(x, y, z) * dtMeshHeader::vertCount]
 	dtLink* links;						///< The tile links. [Size: dtMeshHeader::maxLinkCount]
 	dtPolyDetail* detailMeshes;			///< The tile's detail sub-meshes. [Size: dtMeshHeader::detailMeshCount]
 	
@@ -334,7 +332,7 @@ struct dtMeshTile
 	dtBVNode* bvTree;
 
 	dtOffMeshConnection** offMeshCons;		///< The tile off-mesh connections. [Size: dtMeshHeader::offMeshConCount]
-	
+		
 	unsigned char* data;					///< The tile data. (Not directly accessed under normal situations.)
 	int dataSize;							///< Size of the tile data.
 	int flags;								///< Tile flags. (See: #dtTileFlags)
@@ -345,8 +343,8 @@ private:
 };
 
 /// Get flags for edge in detail triangle.
-/// @param	triFlags[in]		The flags for the triangle (last component of detail vertices above).
-/// @param	edgeIndex[in]		The index of the first vertex of the edge. For instance, if 0,
+/// @param[in]	triFlags		The flags for the triangle (last component of detail vertices above).
+/// @param[in]	edgeIndex		The index of the first vertex of the edge. For instance, if 0,
 ///								returns flags for edge AB.
 inline int dtGetDetailTriEdgeFlags(unsigned char triFlags, int edgeIndex)
 {
@@ -409,13 +407,6 @@ public:
 	/// @return The status flags for the operation.
 	dtStatus removeTile(dtTileRef ref, unsigned char** data, int* dataSize);
 
-	void GlobalOffMeshLinks(dtOffMeshConnection* con);
-
-	void baseOffMeshLinks(dtOffMeshConnection* Connection);
-
-	void LinkOffMeshConnectionToTiles(dtOffMeshConnection* con);
-	void unconnectOffMeshLink(dtOffMeshConnection* con);
-
 	/// @}
 
 	/// @{
@@ -432,9 +423,7 @@ public:
 	///  @param[in]	y		The tile's y-location. (x, y, layer)
 	///  @param[in]	layer	The tile's layer. (x, y, layer)
 	/// @return The tile, or null if the tile does not exist.
-	dtMeshTile* getTileAt(const int x, const int y, const int layer);
-
-	const dtMeshTile* getTileAtConst(const int x, const int y, const int layer) const;
+	dtMeshTile* getTileAt(const int x, const int y, const int layer) const;
 
 	/// Gets all tiles at the specified grid location. (All layers.)
 	///  @param[in]		x			The tile's x-location. (x, y)
@@ -648,6 +637,10 @@ public:
 #endif
 	}
 
+	void unconnectOffMeshLink(const dtOffMeshConnection* con);
+	void baseOffMeshLinks(dtOffMeshConnection* Connection);
+	void GlobalOffMeshLinks(dtOffMeshConnection* con);
+
 	/// @}
 	
 private:
@@ -676,12 +669,11 @@ private:
 	/// Builds internal polygons links for a tile.
 	void baseOffMeshLinks(dtMeshTile* tile);
 
-	
-
 	/// Builds external polygon links for a tile.
 	void connectExtLinks(dtMeshTile* tile, dtMeshTile* target, int side);
 	/// Builds external polygon links for a tile.
 	void connectExtOffMeshLinks(dtMeshTile* tile, dtMeshTile* target, int side);
+	
 	/// Removes external links at specified side.
 	void unconnectLinks(dtMeshTile* tile, dtMeshTile* target);
 	
@@ -705,7 +697,7 @@ private:
 	int m_maxTiles;						///< Max number of tiles.
 	int m_tileLutSize;					///< Tile hash lookup size (must be pot).
 	int m_tileLutMask;					///< Tile hash lookup mask.
-		
+
 	dtMeshTile** m_posLookup;			///< Tile hash lookup.
 	dtMeshTile* m_nextFree;				///< Freelist of tiles.
 	dtMeshTile* m_tiles;				///< List of tiles.

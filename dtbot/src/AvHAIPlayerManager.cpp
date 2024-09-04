@@ -306,6 +306,11 @@ void AIMGR_UpdateAISystem()
 			{
 				AIDEBUG_DrawTemporaryObstacles(DisplayTempObstaclesMesh);
 			}
+
+			if (DebugPath.size() > 0)
+			{
+				AIDEBUG_DrawPath(DebugPath);
+			}
 		}
 
 		AIMGR_UpdateAIPlayers();
@@ -877,6 +882,23 @@ void DTBot_ServerCommand(void)
 		if (FStrEq(arg2, "setdebugvector2"))
 		{
 			DebugVector2 = GetPlayerBottomOfCollisionHull(AIMGR_GetListenServerEdict());
+
+			return;
+		}
+
+		if (FStrEq(arg2, "calcdebugpath"))
+		{
+			if (!vIsZero(DebugVector1) && !vIsZero(DebugVector2))
+			{
+				FindPathClosestToPoint(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), DebugVector1, DebugVector2, DebugPath, 60.0f);
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg2, "cleardebugpath"))
+		{
+			DebugPath.clear();
 
 			return;
 		}

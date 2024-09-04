@@ -932,6 +932,7 @@ void AIPlayerThink(AvHAIPlayer* pBot)
 		else
 		{
 			MoveTo(pBot, pBot->TestLocation, MOVESTYLE_NORMAL);
+			AIDEBUG_DrawBotPath(pBot);
 		}
 	}
 }

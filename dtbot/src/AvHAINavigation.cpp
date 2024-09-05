@@ -2448,6 +2448,7 @@ void NewMove(AvHAIPlayer* pBot)
 
 	bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
+	// HERE! Check if trigger is reachable from where the lift is now! It's currently messing up the button floor position
 	if (!(CurrentPathNode.flag & NAV_FLAG_PLATFORM))
 	{
 		for (int i = pBot->BotNavInfo.CurrentPathPoint + 1; i < pBot->BotNavInfo.CurrentPath.size(); i++)
@@ -2460,20 +2461,35 @@ void NewMove(AvHAIPlayer* pBot)
 
 				if (PlatformObject && NAV_PlatformNeedsActivating(pBot, PlatformObject, FutureNode.FromLocation, FutureNode.Location))
 				{
-					DynamicMapObject* Trigger = NAV_GetBestTriggerForObject(PlatformObject, pBot->Edict, pBot->BotNavInfo.NavProfile);
+					DynamicMapObjectStop DesiredStartStop, DesiredEndStop;
+					GetDesiredPlatformStartAndEnd(PlatformObject, FutureNode.FromLocation, FutureNode.Location, DesiredStartStop, DesiredEndStop);
 
-					if (Trigger)
+					DynamicMapObject* Trigger = nullptr;
+
+					if (vEquals(UTIL_GetCentreOfEntity(PlatformObject->Edict), DesiredStartStop.StopLocation, 5.0f))
 					{
-						if (PlatformObject->State == OBJECTSTATE_IDLE)
-						{
-							NAV_SetUseMovementTask(pBot, Trigger->Edict, Trigger);
-						}
-						else
-						{
-							NAV_SetMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, Trigger->Edict), nullptr);
-						}
-						return;
+						Trigger = NAV_GetTriggerReachableFromPlatform(FutureNode.FromLocation.z + 32.0f, PlatformObject);
 					}
+
+					if (!Trigger)
+					{
+						Trigger = NAV_GetBestTriggerForObject(PlatformObject, pBot->Edict, pBot->BotNavInfo.NavProfile);
+
+						if (Trigger)
+						{
+							if (PlatformObject->State == OBJECTSTATE_IDLE)
+							{
+								NAV_SetUseMovementTask(pBot, Trigger->Edict, Trigger);
+							}
+							else
+							{
+								NAV_SetMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, Trigger->Edict), nullptr);
+							}
+							return;
+						}
+					}
+
+					
 				}
 
 				break;
@@ -2546,9 +2562,9 @@ void NewMove(AvHAIPlayer* pBot)
 	// While moving, check to make sure we're not obstructed by a func_breakable, e.g. vent or window.
 	CheckAndHandleBreakableObstruction(pBot, MoveFrom, MoveTo, CurrentNavFlags);
 
-	if (CurrentNavFlags != NAV_FLAG_PLATFORM)
+	if (!(CurrentNavFlags & NAV_FLAG_PLATFORM))
 	{
-		CheckAndHandleDoorObstruction(pBot);
+		//CheckAndHandleDoorObstruction(pBot);
 	}
 
 }

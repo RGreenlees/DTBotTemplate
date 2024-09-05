@@ -844,6 +844,19 @@ void DTBot_ServerCommand(void)
 			return;
 		}
 
+		if (FStrEq(arg2, "allstop"))
+		{
+			std::vector<AvHAIPlayer*> AllBots = AIMGR_GetAllAIPlayers();
+
+			for (auto it = AllBots.begin(); it != AllBots.end(); it++)
+			{
+				ClearBotMovement((*it));
+				NAV_ClearMovementTask((*it));
+			}
+
+			return;
+		}
+
 		if (FStrEq(arg2, "gotopoint1"))
 		{
 			if (vIsZero(DebugVector1)) { return; }

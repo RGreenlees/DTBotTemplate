@@ -6526,6 +6526,8 @@ void NAV_AddBreakMovementTask(AvHAIPlayer* pBot, edict_t* EntityToBreak, Dynamic
 	NewTask.TriggerToActivate = TriggerToActivate->Edict;
 
 	NewTask.TaskLocation = UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, EntityToBreak);
+
+	pBot->BotNavInfo.MovementTasks.push_back(NewTask);
 }
 
 bool UTIL_IsTileCacheUpToDate()

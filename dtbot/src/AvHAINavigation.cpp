@@ -1956,7 +1956,9 @@ void CheckAndHandleDoorObstruction(AvHAIPlayer* pBot)
 
 	bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
-	DynamicMapObject* BlockingNavObject = UTIL_GetObjectBlockingPathPoint(pBot->Edict->v.origin, CurrentPathNode.Location, CurrentPathNode.flag, nullptr);
+	DynamicMapObject* IgnoreObject = UTIL_GetDynamicObjectByEdict(CurrentPathNode.Platform);
+
+	DynamicMapObject* BlockingNavObject = UTIL_GetObjectBlockingPathPoint(pBot->Edict->v.origin, CurrentPathNode.Location, CurrentPathNode.flag, nullptr, IgnoreObject);
 	
 	if (!BlockingNavObject)
 	{
@@ -1966,7 +1968,9 @@ void CheckAndHandleDoorObstruction(AvHAIPlayer* pBot)
 		{
 			bot_path_node ThisPathNode = pBot->BotNavInfo.CurrentPath[i];
 
-			BlockingNavObject = UTIL_GetObjectBlockingPathPoint(ThisPathNode.FromLocation, ThisPathNode.Location, ThisPathNode.flag, nullptr);
+			IgnoreObject = UTIL_GetDynamicObjectByEdict(ThisPathNode.Platform);
+
+			BlockingNavObject = UTIL_GetObjectBlockingPathPoint(ThisPathNode.FromLocation, ThisPathNode.Location, ThisPathNode.flag, nullptr, IgnoreObject);
 
 			NumIterations++;
 
@@ -2008,19 +2012,19 @@ void CheckAndHandleDoorObstruction(AvHAIPlayer* pBot)
 
 	if (NearestTrigger)
 	{
-		NAV_SetTriggerMovementTask(pBot, NearestTrigger, BlockingNavObject);
+		NAV_AddTriggerMovementTask(pBot, NearestTrigger, BlockingNavObject);
 		return;
 	}
 	
 }
 
-DynamicMapObject* UTIL_GetObjectBlockingPathPoint(bot_path_node* PathNode, DynamicMapObject* SearchObject)
+DynamicMapObject* UTIL_GetObjectBlockingPathPoint(bot_path_node* PathNode, DynamicMapObject* SearchObject, DynamicMapObject* IgnoreObject)
 {
 	Vector FromLocation = PathNode->FromLocation;
 	Vector ToLocation = PathNode->Location;
 	ToLocation.z = PathNode->requiredZ;
 
-	return UTIL_GetObjectBlockingPathPoint(FromLocation, ToLocation, PathNode->flag, SearchObject);
+	return UTIL_GetObjectBlockingPathPoint(FromLocation, ToLocation, PathNode->flag, SearchObject, IgnoreObject);
 }
 
 edict_t* UTIL_GetBreakableBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchBreakable)
@@ -2160,7 +2164,7 @@ edict_t* UTIL_GetBreakableBlockingPathPoint(const Vector FromLocation, const Vec
 	return nullptr;
 }
 
-DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned int MovementFlag, DynamicMapObject* SearchObject)
+DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned int MovementFlag, DynamicMapObject* SearchObject, DynamicMapObject* IgnoreObject)
 {
 
 	Vector FromLoc = FromLocation;
@@ -2183,7 +2187,7 @@ DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, con
 		{
 			for (auto it = DynamicMapObjects.begin(); it != DynamicMapObjects.end(); it++)
 			{
-				if (it->Type == MAPOBJECT_PLATFORM) { continue; }
+				if (it->Type == MAPOBJECT_PLATFORM || (IgnoreObject && it->Edict == IgnoreObject->Edict)) { continue; }
 
 				if (vlineIntersectsAABB(FromLoc, TargetLoc, it->Edict->v.absmin, it->Edict->v.absmax))
 				{
@@ -2203,7 +2207,7 @@ DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, con
 		{
 			for (auto it = DynamicMapObjects.begin(); it != DynamicMapObjects.end(); it++)
 			{
-				if (it->Type == MAPOBJECT_PLATFORM) { continue; }
+				if (it->Type == MAPOBJECT_PLATFORM || (IgnoreObject && it->Edict == IgnoreObject->Edict)) { continue; }
 
 				if (vlineIntersectsAABB(TargetLoc, ToLoc, it->Edict->v.absmin, it->Edict->v.absmax))
 				{
@@ -2228,7 +2232,7 @@ DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, con
 		{
 			for (auto it = DynamicMapObjects.begin(); it != DynamicMapObjects.end(); it++)
 			{
-				if (it->Type == MAPOBJECT_PLATFORM) { continue; }
+				if (it->Type == MAPOBJECT_PLATFORM || (IgnoreObject && it->Edict == IgnoreObject->Edict)) { continue; }
 
 				if (vlineIntersectsAABB(FromLoc, TargetLoc, it->Edict->v.absmin, it->Edict->v.absmax))
 				{
@@ -2248,7 +2252,7 @@ DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, con
 		{
 			for (auto it = DynamicMapObjects.begin(); it != DynamicMapObjects.end(); it++)
 			{
-				if (it->Type == MAPOBJECT_PLATFORM) { continue; }
+				if (it->Type == MAPOBJECT_PLATFORM || (IgnoreObject && it->Edict == IgnoreObject->Edict)) { continue; }
 
 				if (vlineIntersectsAABB(TargetLoc, ToLoc, it->Edict->v.absmin, it->Edict->v.absmax))
 				{
@@ -2272,7 +2276,7 @@ DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, con
 	{
 		for (auto it = DynamicMapObjects.begin(); it != DynamicMapObjects.end(); it++)
 		{
-			if (it->Type == MAPOBJECT_PLATFORM) { continue; }
+			if (it->Type == MAPOBJECT_PLATFORM || (IgnoreObject && it->Edict == IgnoreObject->Edict)) { continue; }
 
 			if (vlineIntersectsAABB(FromLoc, TargetLoc, it->Edict->v.absmin, it->Edict->v.absmax))
 			{
@@ -2304,7 +2308,7 @@ bool UTIL_IsPathBlockedByObject(const NavAgentProfile& NavProfile, const Vector 
 	{
 		for (auto it = TestPath.begin(); it != TestPath.end(); it++)
 		{
-			if (UTIL_GetObjectBlockingPathPoint(&(*it), SearchObject) != nullptr)
+			if (UTIL_GetObjectBlockingPathPoint(&(*it), SearchObject, nullptr) != nullptr)
 			{
 				return true;
 			}
@@ -2479,19 +2483,16 @@ void NewMove(AvHAIPlayer* pBot)
 						{
 							if (PlatformObject->State == OBJECTSTATE_IDLE)
 							{
-								NAV_SetUseMovementTask(pBot, Trigger->Edict, Trigger);
+								NAV_AddUseMovementTask(pBot, Trigger->Edict, Trigger);
 							}
 							else
 							{
-								NAV_SetMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, Trigger->Edict), nullptr);
+								NAV_AddMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, Trigger->Edict), nullptr);
 							}
 							return;
 						}
-					}
-
-					
+					}					
 				}
-
 				break;
 			}
 		}
@@ -2536,7 +2537,7 @@ void NewMove(AvHAIPlayer* pBot)
 		LadderMove(pBot, MoveFrom, MoveTo, CurrentPathNode.requiredZ, NextArea);
 		break;
 	case NAV_FLAG_PLATFORM:
-		PlatformMove(pBot, MoveFrom, MoveTo);
+		PlatformMove(pBot, MoveFrom, MoveTo, CurrentPathNode.Platform);
 		break;
 	default:
 		GroundMove(pBot, MoveFrom, MoveTo);
@@ -2562,10 +2563,9 @@ void NewMove(AvHAIPlayer* pBot)
 	// While moving, check to make sure we're not obstructed by a func_breakable, e.g. vent or window.
 	CheckAndHandleBreakableObstruction(pBot, MoveFrom, MoveTo, CurrentNavFlags);
 
-	if (!(CurrentNavFlags & NAV_FLAG_PLATFORM))
-	{
-		//CheckAndHandleDoorObstruction(pBot);
-	}
+	HandlePlayerAvoidance(pBot, MoveTo);
+
+	CheckAndHandleDoorObstruction(pBot);
 
 }
 
@@ -3057,11 +3057,14 @@ void GetDesiredPlatformStartAndEnd(DynamicMapObject* PlatformRef, Vector EmbarkP
 		Vector NearestPointStart = UTIL_GetClosestPointOnEntityToLocation(EmbarkPoint, PlatformRef->Edict, it->StopLocation);
 		Vector NearestPointEnd = UTIL_GetClosestPointOnEntityToLocation(DisembarkPoint, PlatformRef->Edict, it->StopLocation);
 
+		NearestPointStart.z = it->StopLocation.z + (PlatformRef->Edict->v.size.z * 0.5f);
+		NearestPointEnd.z = it->StopLocation.z + (PlatformRef->Edict->v.size.z * 0.5f);
+
 		float thisStartTouchingDist = vDist2DSq(EmbarkPoint, NearestPointStart);
 		float thisEndTouchingDist = vDist2DSq(DisembarkPoint, NearestPointEnd);
 
-		float thisStartDist = vDist3DSq(EmbarkPoint, CheckLocation);
-		float thisEndDist = vDist3DSq(DisembarkPoint, CheckLocation);
+		float thisStartDist = vDist3DSq(EmbarkPoint, NearestPointStart);
+		float thisEndDist = vDist3DSq(DisembarkPoint, NearestPointEnd);
 
 		if (thisStartTouchingDist <= sqrf(100.0f) && thisStartDist < minStartDist)
 		{
@@ -3235,8 +3238,7 @@ void BoardPlatformMove(AvHAIPlayer* pBot, const Vector EmbarkPoint, DynamicMapOb
 
 	if (vEquals2D(ClosestPointOnLine, EmbarkPoint) && vDist2DSq(pBot->Edict->v.origin, EmbarkPoint) > sqrf(32.0f))
 	{
-		UTIL_DrawLine(INDEXENT(1), EmbarkPoint, EmbarkPoint + Vector(0.0f, 0.0f, 100.0f), 10.0f);
-		NAV_SetMoveMovementTask(pBot, EmbarkPoint, nullptr);
+		NAV_AddMoveMovementTask(pBot, EmbarkPoint, nullptr);
 	}
 	else
 	{
@@ -3260,9 +3262,9 @@ bool NAV_CanBoardPlatform(AvHAIPlayer* pBot, DynamicMapObject* Platform, Vector 
 	return (!vIsZero(ProjectedLocation) && UTIL_PointIsDirectlyReachable(BoardingPoint, ProjectedLocation) && vDist2DSq(BoardingPoint, ProjectedLocation) <= sqrf(Dist + 16.0f));
 }
 
-void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint)
+void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint, edict_t* PlatformEdict)
 {
-	DynamicMapObject* Platform = nullptr;
+	DynamicMapObject* Platform = UTIL_GetDynamicObjectByEdict(PlatformEdict);
 	
 	if (!FNullEnt(pBot->Edict->v.groundentity))
 	{
@@ -3353,7 +3355,7 @@ void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPo
 			}
 			else
 			{
-				NAV_SetMoveMovementTask(pBot, StartPoint, nullptr);
+				NAV_AddMoveMovementTask(pBot, StartPoint, nullptr);
 				return;
 			}
 		}
@@ -3361,12 +3363,12 @@ void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPo
 		{
 			if (Platform->State == OBJECTSTATE_IDLE)
 			{
-				NAV_SetTriggerMovementTask(pBot, BestTrigger, Platform);
+				NAV_AddTriggerMovementTask(pBot, BestTrigger, Platform);
 				return;
 			}
 			else
 			{
-				NAV_SetMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, BestTrigger->Edict), nullptr);
+				NAV_AddMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, BestTrigger->Edict), nullptr);
 				return;
 			}
 		}
@@ -3380,7 +3382,7 @@ void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPo
 		}
 		else
 		{
-			NAV_SetMoveMovementTask(pBot, StartPoint, nullptr);
+			NAV_AddMoveMovementTask(pBot, StartPoint, nullptr);
 			return;
 		}
 	}
@@ -4303,30 +4305,15 @@ bool AbortCurrentMove(AvHAIPlayer* pBot, const Vector NewDestination)
 
 	if (flag == NAV_FLAG_PLATFORM)
 	{
-		if (pBot->BotNavInfo.MovementTask.TaskType != MOVE_TASK_NONE && !vEquals(NewDestination, pBot->BotNavInfo.MovementTask.TaskLocation))
-		{
-			if (NAV_IsMovementTaskStillValid(pBot))
-			{
-				NAV_ProgressMovementTask(pBot);
-				return false;
-			}
-			else
-			{
-				NAV_ClearMovementTask(pBot);
-				ClearBotPath(pBot);
-				return true;
-			}
-		}
-
 		if (bReverseCourse)
 		{
 			if (UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, MoveFrom)) { return true; }
-			PlatformMove(pBot, MoveTo, MoveFrom);
+			PlatformMove(pBot, MoveTo, MoveFrom, CurrentPathNode.Platform);
 		}
 		else
 		{
 			if (UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, MoveTo)) { return true; }
-			PlatformMove(pBot, MoveFrom, MoveTo);
+			PlatformMove(pBot, MoveFrom, MoveTo, CurrentPathNode.Platform);
 		}
 	}
 
@@ -4442,11 +4429,6 @@ void UpdateBotStuck(AvHAIPlayer* pBot)
 
 		if (pBot->BotNavInfo.StuckInfo.TotalStuckTime > 5.0f)
 		{
-			if (pBot->BotNavInfo.MovementTask.TaskType != MOVE_TASK_NONE)
-			{
-				NAV_ClearMovementTask(pBot);
-			}
-
 			ClearBotPath(pBot);
 		}
 
@@ -4466,6 +4448,7 @@ void SetBaseNavProfile(AvHAIPlayer* pBot)
 void UpdateBotMoveProfile(AvHAIPlayer* pBot, BotMoveStyle MoveStyle)
 {	
 	pBot->BotNavInfo.NavProfile = GetBaseAgentProfile(NAV_PROFILE_PLAYER);
+	pBot->BotNavInfo.bNavProfileChanged = false;
 }
 
 bool NAV_GenerateNewBasePath(AvHAIPlayer* pBot, const Vector NewDestination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist)
@@ -4503,15 +4486,13 @@ bool NAV_GenerateNewBasePath(AvHAIPlayer* pBot, const Vector NewDestination, con
 			}
 			else
 			{
-				ClearBotPath(pBot);
-				NAV_ClearMovementTask(pBot);
+				pBot->BotNavInfo.CurrentPath.clear();
 				pBot->BotNavInfo.CurrentPath.insert(pBot->BotNavInfo.CurrentPath.begin(), PendingPath.begin(), PendingPath.end());
 				BotNavInfo->CurrentPathPoint = 0;
 			}
 		}
 
 		BotNavInfo->ActualMoveDestination = BotNavInfo->CurrentPath.back().Location;
-		BotNavInfo->TargetDestination = NewDestination;
 
 		pBot->BotNavInfo.StuckInfo.bPathFollowFailed = false;
 		ClearBotStuckMovement(pBot);
@@ -4662,6 +4643,139 @@ bool NAV_PlatformNeedsActivating(AvHAIPlayer* pBot, DynamicMapObject* Platform, 
 	return false;
 }
 
+bool NAV_GeneratePathForTask(AvHAIPlayer* pBot, AvHAIPlayerMoveTask& Task)
+{
+	Task.bPathGenerated = NAV_GenerateNewBasePath(pBot, Task.TaskLocation, pBot->BotNavInfo.MoveStyle, 60.0f);
+
+	nav_status* BotNavInfo = &pBot->BotNavInfo;
+
+	if (!Task.bPathGenerated)
+	{
+		pBot->BotNavInfo.StuckInfo.bPathFollowFailed = true;
+
+		if (!UTIL_PointIsOnNavmesh(pBot->CollisionHullBottomLocation, pBot->BotNavInfo.NavProfile, Vector(50.0f, 50.0f, 50.0f)))
+		{
+			if (!vIsZero(BotNavInfo->LastNavMeshPosition))
+			{
+				MoveToWithoutNav(pBot, BotNavInfo->LastNavMeshPosition);
+
+				if (vDist2DSq(pBot->CurrentFloorPosition, BotNavInfo->LastNavMeshPosition) < 1.0f)
+				{
+					BotNavInfo->LastNavMeshPosition = ZERO_VECTOR;
+				}
+
+				return false;
+			}
+			else
+			{
+				if (!vIsZero(BotNavInfo->UnstuckMoveLocation) && vDist2DSq(pBot->CurrentFloorPosition, BotNavInfo->UnstuckMoveLocation) < 1.0f)
+				{
+					BotNavInfo->UnstuckMoveLocation = ZERO_VECTOR;
+				}
+
+				if (vIsZero(BotNavInfo->UnstuckMoveLocation))
+				{
+					BotNavInfo->UnstuckMoveLocation = FindClosestPointBackOnPath(pBot, Task.TaskLocation);
+				}
+
+				if (!vIsZero(BotNavInfo->UnstuckMoveLocation))
+				{
+					MoveToWithoutNav(pBot, BotNavInfo->UnstuckMoveLocation);
+					return false;
+				}
+			}
+		}
+		else
+		{
+			if (!vIsZero(BotNavInfo->UnstuckMoveLocation) && vDist2DSq(pBot->CurrentFloorPosition, BotNavInfo->UnstuckMoveLocation) < 1.0f)
+			{
+				BotNavInfo->UnstuckMoveLocation = ZERO_VECTOR;
+			}
+
+			if (vIsZero(BotNavInfo->UnstuckMoveLocation))
+			{
+				BotNavInfo->UnstuckMoveLocation = FindClosestPointBackOnPath(pBot, Task.TaskLocation);
+			}
+
+			if (!vIsZero(BotNavInfo->UnstuckMoveLocation))
+			{
+				MoveToWithoutNav(pBot, BotNavInfo->UnstuckMoveLocation);
+				return false;
+			}
+			else
+			{
+				MoveToWithoutNav(pBot, Task.TaskLocation);
+			}
+
+
+			return false;
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
+void NAV_ProgressMovementTask(AvHAIPlayer* pBot, AvHAIPlayerMoveTask& Task)
+{
+	if (Task.TaskType == MOVE_TASK_NONE) { return; }
+
+	if (Task.TaskType == MOVE_TASK_USE)
+	{
+		if (IsPlayerInUseRange(pBot->Edict, Task.TaskTarget))
+		{
+			BotUseObject(pBot, Task.TaskTarget, false);
+			ClearBotStuck(pBot);
+			return;
+		}
+	}
+
+	if (Task.TaskType == MOVE_TASK_BREAK)
+	{
+		AIWeaponType Weapon = WEAP_GetPlayerCurrentWeapon(pBot->Edict);
+
+		BotAttackResult AttackResult = PerformAttackLOSCheck(pBot, Weapon, Task.TaskTarget);
+
+		if (AttackResult == ATTACK_SUCCESS)
+		{
+			// If we were ducking before then keep ducking
+			if (pBot->Edict->v.oldbuttons & IN_DUCK)
+			{
+				pBot->Button |= IN_DUCK;
+			}
+
+			BotShootTarget(pBot, Weapon, Task.TaskTarget);
+
+			ClearBotStuck(pBot);
+
+			return;
+		}
+	}
+
+	if (!vEquals(pBot->BotNavInfo.PathDestination, Task.TaskLocation, GetPlayerRadius(pBot->Edict)))
+	{
+		NAV_GeneratePathForTask(pBot, Task);
+		return;
+	}
+
+	if (pBot->Edict->v.flags & FL_INWATER)
+	{
+		BotFollowSwimPath(pBot);
+	}
+	else
+	{
+		if (pBot->BotNavInfo.NavProfile.bFlyingProfile)
+		{
+			BotFollowFlightPath(pBot, true);
+		}
+		else
+		{
+			BotFollowPath(pBot);
+		}
+	}
+}
+
 bool MoveTo(AvHAIPlayer* pBot, const Vector Destination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist)
 {
 	// Trying to move nowhere, or our current location. Do nothing
@@ -4685,161 +4799,46 @@ bool MoveTo(AvHAIPlayer* pBot, const Vector Destination, const BotMoveStyle Move
 	bool bIsFlyingProfile = pBot->BotNavInfo.NavProfile.bFlyingProfile;
 	bool bNavProfileChanged = pBot->BotNavInfo.bNavProfileChanged;
 	bool bForceRecalculation = (pBot->BotNavInfo.NextForceRecalc > 0.0f && gpGlobals->time >= pBot->BotNavInfo.NextForceRecalc);
-	bool bIsPerformingMoveTask = (BotNavInfo->MovementTask.TaskType != MOVE_TASK_NONE && vEquals(Destination, BotNavInfo->MovementTask.TaskLocation, GetPlayerRadius(pBot->Edict)));
-	bool bEndGoalChanged = (!vEquals(Destination, BotNavInfo->TargetDestination, GetPlayerRadius(pBot->Edict)) && !bIsPerformingMoveTask);
 
-	bool bShouldGenerateMainPath = (bEndGoalChanged || bNavProfileChanged || bForceRecalculation);
-	bool bShouldGenerateMoveTaskPath = (bIsPerformingMoveTask && !vEquals(BotNavInfo->PathDestination, BotNavInfo->MovementTask.TaskLocation, GetPlayerRadius(pBot->Edict)));
+	bool bEndGoalChanged = (!vEquals(Destination, BotNavInfo->TargetDestination, GetPlayerRadius(pBot->Edict)));
 
-	if (bShouldGenerateMainPath || bShouldGenerateMoveTaskPath)
+	if (bEndGoalChanged)
 	{
-		if (!bIsFlyingProfile && !pBot->BotNavInfo.IsOnGround)
-		{
-			if (pBot->BotNavInfo.CurrentPath.size() > 0)
-			{
-				BotFollowPath(pBot);
-			}
-			return true;
-		}
-
-		if (bShouldGenerateMainPath)
-		{
-			bool bSucceeded = NAV_GenerateNewBasePath(pBot, Destination, MoveStyle, MaxAcceptableDist);
-
-			if (!bSucceeded)
-			{
-				const char* botName = STRING(pBot->Edict->v.netname);
-				pBot->BotNavInfo.StuckInfo.bPathFollowFailed = true;
-
-				if (!UTIL_PointIsOnNavmesh(pBot->CollisionHullBottomLocation, pBot->BotNavInfo.NavProfile, Vector(50.0f, 50.0f, 50.0f)))
-				{
-					if (!vIsZero(BotNavInfo->LastNavMeshPosition))
-					{
-						MoveToWithoutNav(pBot, BotNavInfo->LastNavMeshPosition);
-
-						if (vDist2DSq(pBot->CurrentFloorPosition, BotNavInfo->LastNavMeshPosition) < 1.0f)
-						{
-							BotNavInfo->LastNavMeshPosition = ZERO_VECTOR;
-						}
-
-						return false;
-					}
-					else
-					{
-						if (!vIsZero(BotNavInfo->UnstuckMoveLocation) && vDist2DSq(pBot->CurrentFloorPosition, BotNavInfo->UnstuckMoveLocation) < 1.0f)
-						{
-							BotNavInfo->UnstuckMoveLocation = ZERO_VECTOR;
-						}
-
-						if (vIsZero(BotNavInfo->UnstuckMoveLocation))
-						{
-							BotNavInfo->UnstuckMoveLocation = FindClosestPointBackOnPath(pBot, Destination);
-						}
-
-						if (!vIsZero(BotNavInfo->UnstuckMoveLocation))
-						{
-							MoveToWithoutNav(pBot, BotNavInfo->UnstuckMoveLocation);
-							return false;
-						}
-					}
-				}
-				else
-				{
-					if (!vIsZero(BotNavInfo->UnstuckMoveLocation) && vDist2DSq(pBot->CurrentFloorPosition, BotNavInfo->UnstuckMoveLocation) < 1.0f)
-					{
-						BotNavInfo->UnstuckMoveLocation = ZERO_VECTOR;
-					}
-
-					if (vIsZero(BotNavInfo->UnstuckMoveLocation))
-					{
-						BotNavInfo->UnstuckMoveLocation = FindClosestPointBackOnPath(pBot, Destination);
-					}
-
-					if (!vIsZero(BotNavInfo->UnstuckMoveLocation))
-					{
-						MoveToWithoutNav(pBot, BotNavInfo->UnstuckMoveLocation);
-						return false;
-					}
-					else
-					{
-						MoveToWithoutNav(pBot, Destination);
-					}
-
-
-					return false;
-				}
-
-				return false;
-			}
-		}
-		else
-		{
-			bool bSucceeded = NAV_GenerateNewMoveTaskPath(pBot, BotNavInfo->MovementTask.TaskLocation, MoveStyle);
-
-			if (!bSucceeded)
-			{
-				if (!FNullEnt(BotNavInfo->MovementTask.TaskTarget))
-				{
-					switch (BotNavInfo->MovementTask.TaskType)
-					{
-					case MOVE_TASK_TOUCH:
-						MDLL_Touch(BotNavInfo->MovementTask.TaskTarget, pBot->Edict);
-						return true;
-						break;
-					case MOVE_TASK_USE:
-						MDLL_Use(BotNavInfo->MovementTask.TaskTarget, pBot->Edict);
-						return true;
-						break;
-					default:
-						break;
-
-					}
-				}
-			}
-		}
-
+		ClearBotMovement(pBot);
 	}
 
-	if (!bIsPerformingMoveTask && BotNavInfo->MovementTask.TaskType != MOVE_TASK_NONE)
+	if (pBot->BotNavInfo.MovementTasks.empty())
 	{
-		if (NAV_IsMovementTaskStillValid(pBot))
+		AvHAIPlayerMoveTask PrimaryMoveTask;
+		PrimaryMoveTask.TaskType = MOVE_TASK_MOVE;
+		PrimaryMoveTask.TaskLocation = Destination;
+		PrimaryMoveTask.bPathGenerated = false;
+
+		pBot->BotNavInfo.MovementTasks.push_back(PrimaryMoveTask);
+		BotNavInfo->TargetDestination = Destination;
+	}
+
+	while (pBot->BotNavInfo.MovementTasks.size() > 0 && !NAV_IsMovementTaskStillValid(pBot, pBot->BotNavInfo.MovementTasks.back()))
+	{
+		pBot->BotNavInfo.MovementTasks.pop_back();
+	}
+
+	if (pBot->BotNavInfo.UnstuckTask.TaskType != MOVE_TASK_NONE)
+	{
+		if (!NAV_IsMovementTaskStillValid(pBot, pBot->BotNavInfo.UnstuckTask))
 		{
-			NAV_ProgressMovementTask(pBot);
-			return true;
+			pBot->BotNavInfo.UnstuckTask.TaskType = MOVE_TASK_NONE;
 		}
 		else
 		{
-			NAV_ClearMovementTask(pBot);
-			ClearBotPath(pBot);
+			NAV_ProgressMovementTask(pBot, pBot->BotNavInfo.UnstuckTask);
 			return true;
 		}
 	}
 
-	if (BotNavInfo->CurrentPath.size() > 0)
+	if (pBot->BotNavInfo.MovementTasks.size() > 0)
 	{
-		if (pBot->Edict->v.flags & FL_INWATER)
-		{
-			BotFollowSwimPath(pBot);
-		}
-		else
-		{
-			if (bIsFlyingProfile)
-			{
-				BotFollowFlightPath(pBot, true);
-			}
-			else
-			{
-				BotFollowPath(pBot);
-			}
-		}
-
-		// Check to ensure BotFollowFlightPath or BotFollowPath haven't cleared the path (will happen if reached end of path)
-		if (BotNavInfo->CurrentPathPoint < BotNavInfo->CurrentPath.size())
-		{
-			HandlePlayerAvoidance(pBot, BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint].Location);
-			BotMovementInputs(pBot);
-		}
-
+		NAV_ProgressMovementTask(pBot, pBot->BotNavInfo.MovementTasks.back());
 		return true;
 	}
 
@@ -5023,7 +5022,7 @@ void BotFollowFlightPath(AvHAIPlayer* pBot, bool bAllowSkip)
 
 	if (CurrentPathPoint->flag == NAV_FLAG_PLATFORM)
 	{
-		PlatformMove(pBot, CurrentPathPoint->FromLocation, CurrentMoveDest);
+		PlatformMove(pBot, CurrentPathPoint->FromLocation, CurrentMoveDest, CurrentPathPoint->Platform);
 		return;
 	}
 
@@ -5093,7 +5092,6 @@ void BotFollowSwimPath(AvHAIPlayer* pBot)
 	if (pBot->BotNavInfo.CurrentPath.size() == 0 || pBot->BotNavInfo.CurrentPathPoint >= pBot->BotNavInfo.CurrentPath.size())
 	{
 		ClearBotPath(pBot);
-		NAV_ClearMovementTask(pBot);
 		return;
 	}
 
@@ -5297,6 +5295,8 @@ void BotFollowPath(AvHAIPlayer* pBot)
 	Vector MoveTo = CurrentNode.Location;
 
 	NewMove(pBot);
+
+	BotMovementInputs(pBot);
 
 }
 
@@ -5535,7 +5535,8 @@ void HandlePlayerAvoidance(AvHAIPlayer* pBot, const Vector MoveDestination)
 					{
 						if (UTIL_PointIsReachable(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, pBot->BotNavInfo.LastOpenLocation, GetPlayerRadius(pBot->Edict)))
 						{
-							NAV_SetMoveMovementTask(pBot, pBot->BotNavInfo.LastOpenLocation, nullptr);
+							pBot->BotNavInfo.UnstuckTask.TaskType = MOVE_TASK_MOVE;
+							pBot->BotNavInfo.UnstuckTask.TaskLocation = pBot->BotNavInfo.LastOpenLocation;
 							return;
 						}
 					}
@@ -5588,7 +5589,6 @@ void ClearBotStuck(AvHAIPlayer* pBot)
 bool BotRecalcPath(AvHAIPlayer* pBot, const Vector Destination)
 {
 	ClearBotPath(pBot);
-	NAV_ClearMovementTask(pBot);
 
 	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(pBot->BotNavInfo.NavProfile.NavMeshIndex, Destination, pBot->BotNavInfo.NavProfile, Vector(max_ai_use_reach, max_ai_use_reach, max_ai_use_reach));
 
@@ -5682,6 +5682,8 @@ void ClearBotPath(AvHAIPlayer* pBot)
 
 	pBot->BotNavInfo.TargetDestination = ZERO_VECTOR;
 	pBot->BotNavInfo.PathDestination = ZERO_VECTOR;
+
+	pBot->BotNavInfo.MovementTasks.clear();
 }
 
 void ClearBotStuckMovement(AvHAIPlayer* pBot)
@@ -6456,122 +6458,74 @@ dtStatus DEBUG_TestFindPath(const NavAgentProfile& NavProfile, const Vector From
 	return DT_SUCCESS;
 }
 
-void NAV_SetMoveMovementTask(AvHAIPlayer* pBot, Vector MoveLocation, DynamicMapObject* TriggerToActivate)
+void NAV_AddMoveMovementTask(AvHAIPlayer* pBot, Vector MoveLocation, DynamicMapObject* TriggerToActivate)
 {
-	AvHAIPlayerMoveTask* MoveTask = &pBot->BotNavInfo.MovementTask;
+	if (pBot->BotNavInfo.MovementTasks.size() >= 10) { return; }
 
-	if (MoveTask->TaskType == MOVE_TASK_MOVE && vEquals(MoveTask->TaskLocation, MoveLocation)) { return; }
+	if (vIsZero(MoveLocation)) { return; }
 
 	if (vDist2DSq(pBot->CurrentFloorPosition, MoveLocation) < sqrf(GetPlayerRadius(pBot->Edict)) && fabsf(pBot->CollisionHullBottomLocation.z - MoveLocation.z) < 50.0f) { return; }
 
-	MoveTask->TaskType = MOVE_TASK_MOVE;
-	MoveTask->TaskLocation = MoveLocation;
+	AvHAIPlayerMoveTask NewTask;
+
+	NewTask.TaskType = MOVE_TASK_MOVE;
+	NewTask.TaskLocation = MoveLocation;
 
 	vector<bot_path_node> Path;
 	dtStatus PathStatus = FindPathClosestToPoint(pBot->BotNavInfo.NavProfile, pBot->CurrentFloorPosition, MoveLocation, Path, 200.0f);
 
 	if (dtStatusSucceed(PathStatus) && Path.size() > 0)
 	{
-		MoveTask->TaskLocation = Path.back().Location;
+		NewTask.TaskLocation = Path.back().Location;
 	}
+
+	pBot->BotNavInfo.MovementTasks.push_back(NewTask);
 }
 
-void NAV_SetTouchMovementTask(AvHAIPlayer* pBot, edict_t* EntityToTouch, DynamicMapObject* TriggerToActivate)
+void NAV_AddTouchMovementTask(AvHAIPlayer* pBot, edict_t* EntityToTouch, DynamicMapObject* TriggerToActivate)
 {
-	AvHAIPlayerMoveTask* MoveTask = &pBot->BotNavInfo.MovementTask;
+	if (pBot->BotNavInfo.MovementTasks.size() >= 10) { return; }
 
-	if (MoveTask->TaskType == MOVE_TASK_TOUCH && MoveTask->TaskTarget == EntityToTouch) { return; }
+	AvHAIPlayerMoveTask NewTask;
 
-	MoveTask->TaskType = MOVE_TASK_TOUCH;
-	MoveTask->TaskTarget = EntityToTouch;
-	MoveTask->TriggerToActivate = TriggerToActivate->Edict;
+	NewTask.TaskType = MOVE_TASK_TOUCH;
+	NewTask.TaskTarget = EntityToTouch;
+	NewTask.TriggerToActivate = TriggerToActivate->Edict;
 
 	vector<bot_path_node> Path;
 	dtStatus PathStatus = FindPathClosestToPoint(pBot->BotNavInfo.NavProfile, pBot->CurrentFloorPosition, UTIL_GetCentreOfEntity(EntityToTouch), Path, 200.0f);
 
 	if (dtStatusSucceed(PathStatus) && Path.size() > 0)
 	{
-		MoveTask->TaskLocation = Path.back().Location;
+		NewTask.TaskLocation = Path.back().Location;
 	}
 }
 
-void NAV_SetUseMovementTask(AvHAIPlayer* pBot, edict_t* EntityToUse, DynamicMapObject* TriggerToActivate)
+void NAV_AddUseMovementTask(AvHAIPlayer* pBot, edict_t* EntityToUse, DynamicMapObject* TriggerToActivate)
 {
-	AvHAIPlayerMoveTask* MoveTask = &pBot->BotNavInfo.MovementTask;
+	if (pBot->BotNavInfo.MovementTasks.size() >= 10) { return; }
 
-	if (MoveTask->TaskType == MOVE_TASK_USE && MoveTask->TaskTarget == EntityToUse) { return; }
+	AvHAIPlayerMoveTask NewTask;
 
-	NAV_ClearMovementTask(pBot);
+	NewTask.TaskType = MOVE_TASK_USE;
+	NewTask.TaskTarget = EntityToUse;
+	NewTask.TriggerToActivate = TriggerToActivate->Edict;
+	NewTask.TaskLocation = UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, EntityToUse);
 
-	MoveTask->TaskType = MOVE_TASK_USE;
-	MoveTask->TaskTarget = EntityToUse;
-	MoveTask->TriggerToActivate = TriggerToActivate->Edict;
-	MoveTask->TaskLocation = UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, EntityToUse);
+	pBot->BotNavInfo.MovementTasks.push_back(NewTask);
 }
 
-void NAV_SetBreakMovementTask(AvHAIPlayer* pBot, edict_t* EntityToBreak, DynamicMapObject* TriggerToActivate)
+void NAV_AddBreakMovementTask(AvHAIPlayer* pBot, edict_t* EntityToBreak, DynamicMapObject* TriggerToActivate)
 {
-	AvHAIPlayerMoveTask* MoveTask = &pBot->BotNavInfo.MovementTask;
+	if (pBot->BotNavInfo.MovementTasks.size() >= 10) { return; }
 
-	if (MoveTask->TaskType == MOVE_TASK_BREAK && MoveTask->TaskTarget == EntityToBreak) { return; }
+	AvHAIPlayerMoveTask NewTask;
 
-	NAV_ClearMovementTask(pBot);
+	NewTask.TaskType = MOVE_TASK_BREAK;
+	NewTask.TaskTarget = EntityToBreak;
+	NewTask.TriggerToActivate = TriggerToActivate->Edict;
 
-	MoveTask->TaskType = MOVE_TASK_BREAK;
-	MoveTask->TaskTarget = EntityToBreak;
-	MoveTask->TriggerToActivate = TriggerToActivate->Edict;
-
-	MoveTask->TaskLocation = UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, EntityToBreak);
-}
-
-void NAV_ClearMovementTask(AvHAIPlayer* pBot)
-{
-	pBot->BotNavInfo.MovementTask.TaskType = MOVE_TASK_NONE;
-	pBot->BotNavInfo.MovementTask.TaskLocation = ZERO_VECTOR;
-	pBot->BotNavInfo.MovementTask.TaskTarget = nullptr;
-	pBot->BotNavInfo.MovementTask.TriggerToActivate = nullptr;
-}
-
-void NAV_ProgressMovementTask(AvHAIPlayer* pBot)
-{
-	AvHAIPlayerMoveTask* MoveTask = &pBot->BotNavInfo.MovementTask;
-
-	if (MoveTask->TaskType == MOVE_TASK_NONE) { return; }
-
-	if (MoveTask->TaskType == MOVE_TASK_USE)
-	{
-		if (IsPlayerInUseRange(pBot->Edict, MoveTask->TaskTarget))
-		{
-			BotUseObject(pBot, MoveTask->TaskTarget, false);
-			ClearBotStuck(pBot);
-			return;
-		}
-	}
-
-	if (MoveTask->TaskType == MOVE_TASK_BREAK)
-	{
-		AIWeaponType Weapon = WEAP_GetPlayerCurrentWeapon(pBot->Edict);
-
-		BotAttackResult AttackResult = PerformAttackLOSCheck(pBot, Weapon, MoveTask->TaskTarget);
-
-		if (AttackResult == ATTACK_SUCCESS)
-		{
-			// If we were ducking before then keep ducking
-			if (pBot->Edict->v.oldbuttons & IN_DUCK)
-			{
-				pBot->Button |= IN_DUCK;
-			}
-
-			BotShootTarget(pBot, Weapon, MoveTask->TaskTarget);
-
-			ClearBotStuck(pBot);
-
-			return;
-		}
-	}
-
-	MoveTo(pBot, MoveTask->TaskLocation, MOVESTYLE_NORMAL);
-
+	NewTask.TaskLocation = UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, EntityToBreak);
 }
 
 bool UTIL_IsTileCacheUpToDate()
@@ -6579,98 +6533,91 @@ bool UTIL_IsTileCacheUpToDate()
 	return bTileCacheUpToDate;
 }
 
-bool NAV_IsMovementTaskStillValid(AvHAIPlayer* pBot)
+bool NAV_IsMovementTaskStillValid(AvHAIPlayer* pBot, AvHAIPlayerMoveTask& Task)
 {
-	AvHAIPlayerMoveTask* MoveTask = &pBot->BotNavInfo.MovementTask;
 
-	if (MoveTask->TaskType == MOVE_TASK_NONE) { return false; }
+	if (Task.TaskType == MOVE_TASK_NONE) { return false; }
 	
-	if (MoveTask->TriggerToActivate)
+	if (Task.TriggerToActivate)
 	{
-		DynamicMapObject* TriggerTarget = NAV_GetTriggerByEdict(MoveTask->TriggerToActivate);
+		DynamicMapObject* TriggerTarget = NAV_GetTriggerByEdict(Task.TriggerToActivate);
 
 		if (!TriggerTarget->bIsActive || TriggerTarget->State != OBJECTSTATE_IDLE) { return false; }
 	}
 
-	if (MoveTask->TaskType == MOVE_TASK_MOVE)
+	if (Task.TaskType == MOVE_TASK_MOVE)
 	{
-		return (vDist2DSq(pBot->Edict->v.origin, MoveTask->TaskLocation) > sqrf(GetPlayerRadius(pBot->Edict)) || fabsf(pBot->Edict->v.origin.z - MoveTask->TaskLocation.z) > 50.0f);
+		return (vDist2DSq(pBot->Edict->v.origin, Task.TaskLocation) > sqrf(GetPlayerRadius(pBot->Edict)) || fabsf(pBot->Edict->v.origin.z - Task.TaskLocation.z) > 50.0f);
 	}
 
-	if (MoveTask->TaskType == MOVE_TASK_USE)
+	if (Task.TaskType == MOVE_TASK_USE)
 	{
-		DynamicMapObject* TriggerObject = NAV_GetTriggerByEdict(MoveTask->TaskTarget);
+		DynamicMapObject* TriggerObject = NAV_GetTriggerByEdict(Task.TaskTarget);
 
 		return (TriggerObject && TriggerObject->bIsActive && TriggerObject->State == OBJECTSTATE_IDLE);
 	}
 
-	if (MoveTask->TaskType == MOVE_TASK_PICKUP)
+	if (Task.TaskType == MOVE_TASK_PICKUP)
 	{
-		return (!FNullEnt(MoveTask->TaskTarget) && !(MoveTask->TaskTarget->v.effects & EF_NODRAW));
+		return (!FNullEnt(Task.TaskTarget) && !(Task.TaskTarget->v.effects & EF_NODRAW));
 	}
 
-	if (MoveTask->TaskType == MOVE_TASK_TOUCH)
+	if (Task.TaskType == MOVE_TASK_TOUCH)
 	{
-		DynamicMapObject* TriggerObject = NAV_GetTriggerByEdict(MoveTask->TaskTarget);
+		DynamicMapObject* TriggerObject = NAV_GetTriggerByEdict(Task.TaskTarget);
 
 		if (TriggerObject && (!TriggerObject->bIsActive || TriggerObject->State != OBJECTSTATE_IDLE)) { return false; }
 
-		return (!FNullEnt(MoveTask->TaskTarget) && !IsPlayerTouchingEntity(pBot->Edict, MoveTask->TaskTarget));
+		return (!FNullEnt(Task.TaskTarget) && !IsPlayerTouchingEntity(pBot->Edict, Task.TaskTarget));
 	}
 
-	if (MoveTask->TaskType == MOVE_TASK_BREAK)
+	if (Task.TaskType == MOVE_TASK_BREAK)
 	{
-		return (!FNullEnt(MoveTask->TaskTarget) && MoveTask->TaskTarget->v.deadflag == DEAD_NO && MoveTask->TaskTarget->v.health > 0.0f);
+		return (!FNullEnt(Task.TaskTarget) && Task.TaskTarget->v.deadflag == DEAD_NO && Task.TaskTarget->v.health > 0.0f);
 	}
 
 	return false;
 
 }
-void NAV_SetTriggerMovementTask(AvHAIPlayer* pBot, DynamicMapObject* Trigger, DynamicMapObject* TriggerTarget)
+void NAV_AddTriggerMovementTask(AvHAIPlayer* pBot, DynamicMapObject* Trigger, DynamicMapObject* TriggerTarget)
 {
+	if (pBot->BotNavInfo.MovementTasks.size() >= 10) { return; }
+
 	if (!pBot || !Trigger || !TriggerTarget)
 	{
-		NAV_ClearMovementTask(pBot);
 		return;
 	}
-
-	AvHAIPlayerMoveTask* MoveTask = &pBot->BotNavInfo.MovementTask;
-
-	if (MoveTask->TaskTarget == Trigger->Edict && MoveTask->TriggerToActivate == TriggerTarget->Edict) { return; }
-
-	NAV_ClearMovementTask(pBot);
-
 	switch (Trigger->Type)
 	{
 		case TRIGGER_SHOOT:
 		case TRIGGER_BREAK:
-			NAV_SetBreakMovementTask(pBot, Trigger->Edict, TriggerTarget);
+			NAV_AddBreakMovementTask(pBot, Trigger->Edict, TriggerTarget);
 			break;
 		case TRIGGER_TOUCH:
-			NAV_SetBreakMovementTask(pBot, Trigger->Edict, TriggerTarget);
+			NAV_AddTouchMovementTask(pBot, Trigger->Edict, TriggerTarget);
 			break;
 		case TRIGGER_USE:
-			NAV_SetUseMovementTask(pBot, Trigger->Edict, TriggerTarget);
+			NAV_AddUseMovementTask(pBot, Trigger->Edict, TriggerTarget);
 			break;
 		default:
-			NAV_SetUseMovementTask(pBot, Trigger->Edict, TriggerTarget);
+			NAV_AddUseMovementTask(pBot, Trigger->Edict, TriggerTarget);
 			break;
 	}
 	
 }
 
-void NAV_SetPickupMovementTask(AvHAIPlayer* pBot, edict_t* ThingToPickup, DynamicMapObject* TriggerToActivate)
+void NAV_AddPickupMovementTask(AvHAIPlayer* pBot, edict_t* ThingToPickup, DynamicMapObject* TriggerToActivate)
 {
-	AvHAIPlayerMoveTask* MoveTask = &pBot->BotNavInfo.MovementTask;
+	if (pBot->BotNavInfo.MovementTasks.size() >= 10) { return; }
 
-	if (MoveTask->TaskType == MOVE_TASK_PICKUP && MoveTask->TaskTarget == ThingToPickup) { return; }
+	AvHAIPlayerMoveTask NewTask;
 
-	NAV_ClearMovementTask(pBot);
+	NewTask.TaskType = MOVE_TASK_PICKUP;
+	NewTask.TaskTarget = ThingToPickup;
+	NewTask.TriggerToActivate = TriggerToActivate->Edict;
+	NewTask.TaskLocation = ThingToPickup->v.origin;
 
-	MoveTask->TaskType = MOVE_TASK_PICKUP;
-	MoveTask->TaskTarget = ThingToPickup;
-	MoveTask->TriggerToActivate = TriggerToActivate->Edict;
-	MoveTask->TaskLocation = ThingToPickup->v.origin;
+	pBot->BotNavInfo.MovementTasks.push_back(NewTask);
 }
 
 vector<NavHint*> NAV_GetHintsOfType(unsigned int NavMeshIndex, unsigned int HintType)

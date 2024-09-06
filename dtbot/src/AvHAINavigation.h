@@ -205,7 +205,7 @@ void FallMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint)
 void LadderMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight, unsigned char NextArea);
 
 // Called by NewMove, determines the movement direction and inputs required to use a moving platform to reach an end point
-void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint);
+void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint, edict_t* PlatformEdict);
 
 bool UTIL_TriggerHasBeenRecentlyActivated(edict_t* TriggerEntity);
 
@@ -217,8 +217,8 @@ void CheckAndHandleDoorObstruction(AvHAIPlayer* pBot);
 DynamicMapObject* UTIL_GetNearestObjectTrigger(const Vector Location, DynamicMapObject* Object, edict_t* IgnoreTrigger, bool bCheckBlockedByDoor);
 bool UTIL_IsPathBlockedByObject(const NavAgentProfile& NavProfile, const Vector StartLoc, const Vector EndLoc, DynamicMapObject* SearchObject);
 
-DynamicMapObject* UTIL_GetObjectBlockingPathPoint(bot_path_node* PathNode, DynamicMapObject* SearchObject);
-DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned int MovementFlag, DynamicMapObject* SearchObject);
+DynamicMapObject* UTIL_GetObjectBlockingPathPoint(bot_path_node* PathNode, DynamicMapObject* SearchObject, DynamicMapObject* IgnoreObject);
+DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned int MovementFlag, DynamicMapObject* SearchObject, DynamicMapObject* IgnoreObject);
 edict_t* UTIL_GetBreakableBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchBreakable);
 edict_t* UTIL_GetBreakableBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned int MovementFlag, edict_t* SearchBreakable);
 
@@ -425,17 +425,15 @@ Vector UTIL_AdjustPointAwayFromNavWall(const Vector Location, const float MaxDis
 
 const dtOffMeshConnection* DEBUG_FindNearestOffMeshConnectionToPoint(const Vector Point, unsigned int FilterFlags);
 
-void NAV_SetTriggerMovementTask(AvHAIPlayer* pBot, DynamicMapObject* Trigger, DynamicMapObject* TriggerTarget);
-void NAV_SetPickupMovementTask(AvHAIPlayer* pBot, edict_t* ThingToPickup, DynamicMapObject* TriggerToActivate);
-void NAV_SetMoveMovementTask(AvHAIPlayer* pBot, Vector MoveLocation, DynamicMapObject* TriggerToActivate);
-void NAV_SetTouchMovementTask(AvHAIPlayer* pBot, edict_t* EntityToTouch, DynamicMapObject* TriggerToActivate);
-void NAV_SetUseMovementTask(AvHAIPlayer* pBot, edict_t* EntityToUse, DynamicMapObject* TriggerToActivate);
-void NAV_SetBreakMovementTask(AvHAIPlayer* pBot, edict_t* EntityToBreak, DynamicMapObject* TriggerToActivate);
+void NAV_AddTriggerMovementTask(AvHAIPlayer* pBot, DynamicMapObject* Trigger, DynamicMapObject* TriggerTarget);
+void NAV_AddPickupMovementTask(AvHAIPlayer* pBot, edict_t* ThingToPickup, DynamicMapObject* TriggerToActivate);
+void NAV_AddMoveMovementTask(AvHAIPlayer* pBot, Vector MoveLocation, DynamicMapObject* TriggerToActivate);
+void NAV_AddTouchMovementTask(AvHAIPlayer* pBot, edict_t* EntityToTouch, DynamicMapObject* TriggerToActivate);
+void NAV_AddUseMovementTask(AvHAIPlayer* pBot, edict_t* EntityToUse, DynamicMapObject* TriggerToActivate);
+void NAV_AddBreakMovementTask(AvHAIPlayer* pBot, edict_t* EntityToBreak, DynamicMapObject* TriggerToActivate);
 
-void NAV_ClearMovementTask(AvHAIPlayer* pBot);
-
-void NAV_ProgressMovementTask(AvHAIPlayer* pBot);
-bool NAV_IsMovementTaskStillValid(AvHAIPlayer* pBot);
+void NAV_ProgressMovementTask(AvHAIPlayer* pBot, AvHAIPlayerMoveTask& Task);
+bool NAV_IsMovementTaskStillValid(AvHAIPlayer* pBot, AvHAIPlayerMoveTask& Task);
 
 bool UTIL_IsTileCacheUpToDate();
 

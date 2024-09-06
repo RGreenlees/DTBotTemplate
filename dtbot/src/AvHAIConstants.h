@@ -309,7 +309,8 @@ typedef struct _NAV_STATUS
 
 	unsigned int SpecialMovementFlags = 0; // Any special movement flags required for the current path (e.g. needs to pick up an item)
 
-	AvHAIPlayerMoveTask MovementTask;
+	std::vector<AvHAIPlayerMoveTask> MovementTasks;
+	AvHAIPlayerMoveTask UnstuckTask;
 } nav_status;
 
 typedef struct _BOT_CURRENT_WEAPON_T

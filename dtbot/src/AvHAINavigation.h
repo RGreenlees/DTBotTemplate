@@ -225,6 +225,8 @@ edict_t* UTIL_GetBreakableBlockingPathPoint(const Vector FromLocation, const Vec
 
 Vector UTIL_GetButtonFloorLocation(const NavAgentProfile& NavProfile, const Vector UserLocation, edict_t* ButtonEdict);
 
+bool NAV_IsPointInSwimArea(const Vector& Point);
+
 // Clears all tracking of a bot's stuck status
 void ClearBotStuck(AvHAIPlayer* pBot);
 // Clears all bot movement data, including the current path, their stuck status. Effectively stops all movement the bot is performing.

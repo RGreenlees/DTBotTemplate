@@ -1238,6 +1238,25 @@ dtStatus FindPathClosestToPoint(const NavAgentProfile& NavProfile, const Vector 
 		return FindFlightPathToPoint(NavProfile, FromLocation, ToLocation, path, MaxAcceptableDistance);
 	}
 
+	if (NAV_IsPointInSwimArea(FromLocation) && NAV_IsPointInSwimArea(ToLocation))
+	{
+		if (UTIL_QuickTrace(nullptr, FromLocation, ToLocation, false))
+		{
+			path.clear();
+
+			bot_path_node StartPoint;
+			StartPoint.FromLocation = FromLocation;
+			StartPoint.Location = ToLocation;
+			StartPoint.area = NAV_AREA_WALK;
+			StartPoint.flag = NAV_FLAG_WALK;
+			
+			path.push_back(StartPoint);
+
+			return DT_SUCCESS;
+
+		}
+	}
+
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfile);
 	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfile);
 	const dtQueryFilter* m_navFilter = &NavProfile.Filters;
@@ -1791,7 +1810,14 @@ bool UTIL_PointIsReachable(const NavAgentProfile &NavProfile, const Vector FromL
 	dtPolyRef PolyPath[MAX_PATH_POLY];
 	int nPathCount = 0;
 
+	
+
 	float searchExtents[3] = { MaxAcceptableDistance, 50.0f, MaxAcceptableDistance };
+
+	if (NAV_IsPointInSwimArea(FromLocation) && NAV_IsPointInSwimArea(ToLocation))
+	{
+		if (UTIL_QuickHullTrace(nullptr, FromLocation, ToLocation)) { return true; }
+	}
 
 	// find the start polygon
 	status = m_navQuery->findNearestPoly(pStartPos, searchExtents, m_navFilter, &StartPoly, StartNearest);
@@ -1821,7 +1847,17 @@ bool UTIL_PointIsReachable(const NavAgentProfile &NavProfile, const Vector FromL
 
 		m_navQuery->closestPointOnPoly(PolyPath[nPathCount - 1], EndNearest, epos, 0);
 
-		return (dtVdistSqr(EndNearest, epos) <= sqrf(MaxAcceptableDistance));
+		if (dtVdistSqr(EndNearest, epos) <= sqrf(MaxAcceptableDistance))
+		{
+			return true;
+		}
+		else
+		{
+			if (NAV_IsPointInSwimArea(epos) && NAV_IsPointInSwimArea(ToLocation))
+			{
+				return true;
+			}
+		}
 
 	}
 
@@ -2290,6 +2326,14 @@ DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, con
 
 bool UTIL_IsPathBlockedByObject(const NavAgentProfile& NavProfile, const Vector StartLoc, const Vector EndLoc, DynamicMapObject* SearchObject)
 {
+	if (NAV_IsPointInSwimArea(StartLoc) && NAV_IsPointInSwimArea(EndLoc))
+	{
+		if (UTIL_QuickHullTrace(nullptr, StartLoc, EndLoc))
+		{
+			return vlineIntersectsAABB(StartLoc, EndLoc, SearchObject->Edict->v.absmin, SearchObject->Edict->v.absmax);
+		}
+	}
+
 	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, EndLoc, NavProfile);
 
 	if (!ValidNavmeshPoint)
@@ -4400,7 +4444,7 @@ void UpdateBotStuck(AvHAIPlayer* pBot)
 
 		bool bIsFollowingPath = (pBot->BotNavInfo.CurrentPath.size() > 0 && pBot->BotNavInfo.CurrentPathPoint < pBot->BotNavInfo.CurrentPath.size());
 
-		bool bDist3D = pBot->BotNavInfo.NavProfile.bFlyingProfile || (bIsFollowingPath && (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].flag == NAV_FLAG_LADDER));
+		bool bDist3D = pBot->BotNavInfo.NavProfile.bFlyingProfile || (pBot->Edict->v.flags & FL_INWATER) || (bIsFollowingPath && (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].flag == NAV_FLAG_LADDER));
 
 		float DistFromLastPoint = (bDist3D) ? vDist3DSq(pBot->Edict->v.origin, pBot->BotNavInfo.StuckInfo.LastBotPosition) : vDist2DSq(pBot->Edict->v.origin, pBot->BotNavInfo.StuckInfo.LastBotPosition);
 
@@ -4774,6 +4818,8 @@ void NAV_ProgressMovementTask(AvHAIPlayer* pBot, AvHAIPlayerMoveTask& Task)
 			BotFollowPath(pBot);
 		}
 	}
+
+	BotMovementInputs(pBot);
 }
 
 bool MoveTo(AvHAIPlayer* pBot, const Vector Destination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist)
@@ -5124,10 +5170,10 @@ void BotFollowSwimPath(AvHAIPlayer* pBot)
 		}
 	}
 
-	bool TargetPointIsInWater = (UTIL_PointContents(CurrentPathPoint->Location) == CONTENTS_WATER || UTIL_PointContents(CurrentPathPoint->Location) == CONTENTS_SLIME);
+	bool TargetPointIsInWater = NAV_IsPointInSwimArea(CurrentPathPoint->Location);
 
 	bool bHasNextPoint = (next(CurrentPathPoint) != BotNavInfo->CurrentPath.end());
-	bool NextPointInWater = TargetPointIsInWater;//(bHasNextPoint) ? UTIL_PointContents(next(CurrentPathPoint)->Location) == CONTENTS_WATER : TargetPointIsInWater;
+	bool NextPointInWater = TargetPointIsInWater;
 
 	bool bShouldSurface = (bHasNextPoint && !NextPointInWater && vDist2DSq(pEdict->v.origin, next(CurrentPathPoint)->FromLocation) < sqrf(100.0f));
 
@@ -5295,8 +5341,6 @@ void BotFollowPath(AvHAIPlayer* pBot)
 	Vector MoveTo = CurrentNode.Location;
 
 	NewMove(pBot);
-
-	BotMovementInputs(pBot);
 
 }
 
@@ -5936,6 +5980,20 @@ Vector UTIL_GetFurthestVisiblePointOnPath(const Vector ViewerLocation, vector<bo
 
 Vector UTIL_GetButtonFloorLocation(const NavAgentProfile& NavProfile, const Vector UserLocation, edict_t* ButtonEdict)
 {
+	if (NAV_IsPointInSwimArea(UserLocation))
+	{
+		Vector NearestTriggerPoint = UTIL_GetClosestPointOnEntityToLocation(UserLocation, ButtonEdict);
+
+		TraceResult Hit;
+
+		UTIL_TraceHull(UserLocation, NearestTriggerPoint, ignore_monsters, head_hull, nullptr, &Hit);
+
+		if (Hit.fInWater)
+		{
+			if (vDist3DSq(NearestTriggerPoint, Hit.vecEndPos) < sqrf(max_player_use_reach)) { return Hit.vecEndPos; }
+		}
+	}
+
 	Vector ClosestPoint = ZERO_VECTOR;
 
 	if (ButtonEdict->v.size.x > 64.0f || ButtonEdict->v.size.y > 64.0f)
@@ -5987,8 +6045,27 @@ Vector UTIL_GetButtonFloorLocation(const NavAgentProfile& NavProfile, const Vect
 	{
 		NewButtonAccessPoint = ClosestPoint;
 	}
+	else
+	{
+		if (NAV_IsPointInSwimArea(NewButtonAccessPoint))
+		{
+			Vector NewClosestPoint = NewButtonAccessPoint + ((ClosestPoint - NewButtonAccessPoint) * 0.95f);
+
+			if (NAV_IsPointInSwimArea(NewClosestPoint))
+			{
+				NewButtonAccessPoint = NewClosestPoint;
+			}
+		}
+	}
 
 	return NewButtonAccessPoint;
+}
+
+bool NAV_IsPointInSwimArea(const Vector& Point)
+{
+	return UTIL_PointContents(Point) == CONTENTS_WATER
+		|| UTIL_PointContents(Point) == CONTENTS_SLIME
+		|| UTIL_PointContents(Point) == CONTENTS_LAVA;
 }
 
 void NAV_PopulateConnectionsAffectedByDynamicObject(DynamicMapObject* Object)
@@ -8122,8 +8199,6 @@ void DEBUG_PrintObjectInfo(DynamicMapObject* Object)
 
 		sprintf(interbuf, "Is Active: %s\n\n", (ThisTrigger->bIsActive) ? "True" : "False");
 		strcat(buf, interbuf);
-
-
 	}
 
 	UTIL_DrawHUDText(AIMGR_GetListenServerEdict(), 1, 0.6, 0.1f, 255, 255, 255, buf);
@@ -8132,7 +8207,11 @@ void DEBUG_PrintObjectInfo(DynamicMapObject* Object)
 
 	if (BestTrigger)
 	{
-		UTIL_DrawLine(AIMGR_GetListenServerEdict(), AIMGR_GetListenServerEdict()->v.origin, UTIL_GetButtonFloorLocation(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), AIMGR_GetListenServerEdict()->v.origin, BestTrigger->Edict), 0, 128, 0);
+		UTIL_DrawLine(AIMGR_GetListenServerEdict(), AIMGR_GetListenServerEdict()->v.origin, UTIL_GetCentreOfEntity(BestTrigger->Edict), 0, 128, 0);
+
+		Vector TriggerFloorLoc = UTIL_GetButtonFloorLocation(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), INDEXENT(1)->v.origin, BestTrigger->Edict);
+
+		UTIL_DrawLine(AIMGR_GetListenServerEdict(), AIMGR_GetListenServerEdict()->v.origin, UTIL_GetButtonFloorLocation(GetBaseAgentProfile(NAV_PROFILE_DEFAULT), AIMGR_GetListenServerEdict()->v.origin, BestTrigger->Edict), 0, 0, 255);
 	}
 
 	if (AIMGR_GetListenServerEdict()->v.groundentity == Object->Edict)

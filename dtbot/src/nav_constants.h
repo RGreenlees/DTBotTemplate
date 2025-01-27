@@ -19,13 +19,13 @@ enum NavMovementFlag
 	NAV_FLAG_LADDER = 1 << 3,		// Ladder
 	NAV_FLAG_FALL = 1 << 4,		// Fall
 	NAV_FLAG_PLATFORM = 1 << 5,		// Platform
+	NAV_FLAG_TELEPORT = 1 << 6,		// Teleport
 	NAV_FLAG_ALL = -1		// All flags
 };
 
 // Nav hint types
 enum NavHintType
 {
-	NAV_HINT_AMBUSH = 1 << 0,		// Ambush
 	NAV_HINT_ANY = -1		// Any hint type
 };
 
@@ -38,6 +38,7 @@ enum NavArea
 	NAV_AREA_CROUCH = 2,		// Crouch
 	NAV_AREA_OBSTRUCTED = 3,		// Obstructed
 	NAV_AREA_HAZARD = 4,		// Hazard
+	NAV_AREA_TELEPORT = 5,		// Teleport
 };
 
 // Profile indices. Use these when retrieving base agent profile information
@@ -50,7 +51,7 @@ enum NavProfileIndex
 // Profile indices. Use these when retrieving base agent profile information
 enum NavMeshIndex
 {
-	NAV_MESH_PLAYER = 0,		// Nav Mesh
+	NAV_MESH_NEW = 0,		// Nav Mesh
 };
 
 // Agent profile definition. Holds all information an agent needs when querying the nav mesh
@@ -81,13 +82,15 @@ inline NavMovementFlag GetFlagForArea(NavArea Area)
 	case NAV_AREA_UNWALKABLE:
 		return NAV_FLAG_DISABLED;
 	case NAV_AREA_WALK:
-		return NAV_FLAG_WALK;
-	case NAV_AREA_CROUCH:
 		return NAV_FLAG_CROUCH;
-	case NAV_AREA_OBSTRUCTED:
+	case NAV_AREA_CROUCH:
 		return NAV_FLAG_JUMP;
+	case NAV_AREA_OBSTRUCTED:
+		return NAV_FLAG_LADDER;
 	case NAV_AREA_HAZARD:
-		return NAV_FLAG_WALK;
+		return NAV_FLAG_CROUCH;
+	case NAV_AREA_TELEPORT:
+		return NAV_FLAG_TELEPORT;
 	default:
 		return NAV_FLAG_DISABLED;
 	}
@@ -127,6 +130,11 @@ inline void GetDebugColorForArea(NavArea Area, unsigned char& R, unsigned char& 
 		R = 192;
 		G = 32;
 		B = 32;
+		break;
+	case NAV_AREA_TELEPORT:
+		R = 255;
+		G = 255;
+		B = 255;
 		break;
 	default:
 		R = 255;
@@ -176,6 +184,11 @@ inline void GetDebugColorForFlag(NavMovementFlag Flag, unsigned char& R, unsigne
 		G = 32;
 		B = 255;
 		break;
+	case NAV_FLAG_TELEPORT:
+		R = 255;
+		G = 255;
+		B = 255;
+		break;
 	default:
 		R = 255;
 		G = 255;
@@ -212,9 +225,38 @@ inline void GetFlagName(NavMovementFlag Flag, char* outName)
 	case NAV_FLAG_PLATFORM:
 		sprintf(outName, "Platform");
 		break;
+	case NAV_FLAG_TELEPORT:
+		sprintf(outName, "Teleport");
+		break;
 	default:
 		sprintf(outName, "Undefined");
 		break;
+	}
+}
+
+// Returns true if this flag is a teleport move (i.e. not affected by doors or other obstacles)
+inline bool IsFlagTeleportType(NavMovementFlag Flag)
+{
+	switch (Flag)
+	{
+	case NAV_FLAG_DISABLED:
+		return false;
+	case NAV_FLAG_WALK:
+		return false;
+	case NAV_FLAG_CROUCH:
+		return false;
+	case NAV_FLAG_JUMP:
+		return false;
+	case NAV_FLAG_LADDER:
+		return false;
+	case NAV_FLAG_FALL:
+		return false;
+	case NAV_FLAG_PLATFORM:
+		return false;
+	case NAV_FLAG_TELEPORT:
+		return true;
+	default:
+		return false;
 	}
 }
 
@@ -240,6 +282,9 @@ inline void GetAreaName(NavArea Area, char* outName)
 	case NAV_AREA_HAZARD:
 		sprintf(outName, "Hazard");
 		break;
+	case NAV_AREA_TELEPORT:
+		sprintf(outName, "Teleport");
+		break;
 	default:
 		sprintf(outName, "Undefined");
 		break;
@@ -253,13 +298,14 @@ inline void PopulateBaseAgentProfiles()
 
 	NavAgentProfile NewProfile;
 	NewProfile.NavMeshIndex = 0;
-	NewProfile.Filters.setIncludeFlags(63);
+	NewProfile.Filters.setIncludeFlags(127);
 	NewProfile.Filters.setExcludeFlags(NAV_FLAG_DISABLED);
 	NewProfile.Filters.setAreaCost(0, 0.0);
 	NewProfile.Filters.setAreaCost(1, 1.0);
 	NewProfile.Filters.setAreaCost(2, 2.0);
-	NewProfile.Filters.setAreaCost(3, 4.0);
+	NewProfile.Filters.setAreaCost(3, 2.0);
 	NewProfile.Filters.setAreaCost(4, 10.0);
+	NewProfile.Filters.setAreaCost(5, 0.1);
 	BaseAgentProfiles.push_back(NewProfile);
 
 	NavAgentProfile DefaultProfile;
@@ -271,6 +317,7 @@ inline void PopulateBaseAgentProfiles()
 	DefaultProfile.Filters.setAreaCost(2, 1.0);
 	DefaultProfile.Filters.setAreaCost(3, 1.0);
 	DefaultProfile.Filters.setAreaCost(4, 1.0);
+	DefaultProfile.Filters.setAreaCost(5, 1.0);
 	BaseAgentProfiles.push_back(DefaultProfile);
 
 }

@@ -157,6 +157,7 @@ void AIMGR_AddAIPlayerToTeam(int Team)
 	// If bots aren't enabled or the game has ended, don't allow new bots to be added
 	if (!AIMGR_IsBotEnabled())
 	{
+		g_engfuncs.pfnServerPrint("Bot is disabled currently\n");
 		ALERT(at_console, "Bot is disabled currently\n");
 		return;
 	}
@@ -838,7 +839,14 @@ void DTBot_ServerCommand(void)
 
 			for (auto it = AllBots.begin(); it != AllBots.end(); it++)
 			{
-				(*it)->TestLocation = UTIL_GetFloorUnderEntity(ListenEdict);
+				if (NAV_IsPointInSwimArea(ListenEdict->v.origin))
+				{
+					(*it)->TestLocation = ListenEdict->v.origin;
+				}
+				else
+				{
+					(*it)->TestLocation = UTIL_GetFloorUnderEntity(ListenEdict);
+				}
 			}
 
 			return;
@@ -886,14 +894,32 @@ void DTBot_ServerCommand(void)
 
 		if (FStrEq(arg2, "setdebugvector1"))
 		{
-			DebugVector1 = GetPlayerBottomOfCollisionHull(AIMGR_GetListenServerEdict());
+			edict_t* ListenServerEdict = AIMGR_GetListenServerEdict();
+
+			if (ListenServerEdict->v.flags & FL_INWATER)
+			{
+				DebugVector1 = ListenServerEdict->v.origin;
+			}
+			else
+			{
+				DebugVector1 = GetPlayerBottomOfCollisionHull(ListenServerEdict);
+			}			
 
 			return;
 		}
 
 		if (FStrEq(arg2, "setdebugvector2"))
 		{
-			DebugVector2 = GetPlayerBottomOfCollisionHull(AIMGR_GetListenServerEdict());
+			edict_t* ListenServerEdict = AIMGR_GetListenServerEdict();
+
+			if (ListenServerEdict->v.flags & FL_INWATER)
+			{
+				DebugVector2 = ListenServerEdict->v.origin;
+			}
+			else
+			{
+				DebugVector2 = GetPlayerBottomOfCollisionHull(ListenServerEdict);
+			}
 
 			return;
 		}

@@ -182,11 +182,22 @@ void AIDEBUG_DrawBotPath(AvHAIPlayer* pBot, float DrawTime)
 	{
 		bot_path_node CurrentNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
-		unsigned char R, G, B;
+		DynamicMapObject* BlockingObject = UTIL_GetObjectBlockingPathPoint(&CurrentNode, nullptr, nullptr);
 
-		GetDebugColorForFlag((NavMovementFlag)CurrentNode.flag, R, G, B);
+		if (BlockingObject && BlockingObject->State == OBJECTSTATE_IDLE)
+		{
+			UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, CurrentNode.Location, DrawTime, 255, 255, 0);
+		}
+		else
+		{
+			unsigned char R, G, B;
 
-		UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, CurrentNode.Location, DrawTime, R, G, B);
+			GetDebugColorForFlag((NavMovementFlag)CurrentNode.flag, R, G, B);
+
+			UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, CurrentNode.Location, DrawTime, R, G, B);
+		}
+
+
 	}
 }
 
@@ -196,14 +207,22 @@ void AIDEBUG_DrawPath(std::vector<bot_path_node>& path, float DrawTime)
 
 	for (auto it = path.begin(); it != path.end(); it++)
 	{
-		Vector FromLoc = it->FromLocation;
-		Vector ToLoc = it->Location;
+		bot_path_node CurrentNode = *it;
 
-		unsigned char R, G, B;
+		DynamicMapObject* BlockingObject = UTIL_GetObjectBlockingPathPoint(&CurrentNode, nullptr, nullptr);
 
-		GetDebugColorForFlag((NavMovementFlag)it->flag, R, G, B);
+		if (BlockingObject && BlockingObject->State == OBJECTSTATE_IDLE)
+		{
+			UTIL_DrawLine(INDEXENT(1), CurrentNode.FromLocation, CurrentNode.Location, DrawTime, 255, 255, 0);
+		}
+		else
+		{
+			unsigned char R, G, B;
 
-		UTIL_DrawLine(INDEXENT(1), FromLoc, ToLoc, DrawTime, R, G, B);
+			GetDebugColorForFlag((NavMovementFlag)CurrentNode.flag, R, G, B);
+
+			UTIL_DrawLine(INDEXENT(1), CurrentNode.FromLocation, CurrentNode.Location, DrawTime, R, G, B);
+		}
 	}
 }
 

@@ -8,7 +8,7 @@
 #include <string>
 
 
-// Reads evobot.cfg in addons/evobot and populates all the settings from it
+// Reads dtbot.cfg in addons/dtbot and populates all the settings from it
 void CONFIG_ParseConfigFile();
 
 std::string CONFIG_GetBotPrefix();

@@ -1,4 +1,4 @@
-Building Evobot with AMBuild
+Building DTBot with AMBuild
 ===============
 
 # Requirements
@@ -25,7 +25,7 @@ After cloning the current repo, you must configure the build.
 First create a folder called **build** and then run *configure.py*. Example:
 
 ```
-cd evobot_mm
+cd dtbot_mm
 mkdir build
 cd build
 python ../configure.py

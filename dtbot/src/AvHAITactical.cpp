@@ -1,5 +1,5 @@
 //
-// EvoBot - Neoptolemus' Natural Selection bot, based on Botman's HPB bot template
+// DTBot - Neoptolemus' Recast/Detour base GoldSrc bot, based on Botman's HPB bot template
 //
 // bot_gorge.cpp
 // 
@@ -154,7 +154,7 @@ int AITAC_GetNumPlayersOfTeamInArea(const int Team, const Vector SearchLocation,
 
 bool AITAC_AnyPlayersOfTeamInArea(const int Team, const Vector SearchLocation, const float SearchRadius, const edict_t* IgnorePlayer)
 {
-	float MaxRadiusSq = sqrf(SearchRadius);
+	const float MaxRadiusSq = sqrf(SearchRadius);
 
 	for (int i = 1; i <= gpGlobals->maxClients; i++)
 	{
@@ -164,7 +164,7 @@ bool AITAC_AnyPlayersOfTeamInArea(const int Team, const Vector SearchLocation, c
 
 		if (PlayerEdict->v.team == Team && IsPlayerActiveInGame(PlayerEdict))
 		{
-			float Dist = vDist2DSq(PlayerEdict->v.origin, SearchLocation);
+			const float Dist = vDist2DSq(PlayerEdict->v.origin, SearchLocation);
 
 			if (Dist <= MaxRadiusSq)
 			{
@@ -178,7 +178,7 @@ bool AITAC_AnyPlayersOfTeamInArea(const int Team, const Vector SearchLocation, c
 
 edict_t* AITAC_GetClosestPlayerOnTeamWithLOS(const int Team, const Vector& Location, float SearchRadius, edict_t* IgnorePlayer)
 {
-	float distSq = sqrf(SearchRadius);
+	const float distSq = sqrf(SearchRadius);
 	float MinDist = 0.0f;
 	edict_t* Result = nullptr;
 
@@ -207,7 +207,7 @@ edict_t* AITAC_GetClosestPlayerOnTeamWithLOS(const int Team, const Vector& Locat
 
 bool AITAC_AnyPlayerOnTeamHasLOSToLocation(int Team, const Vector& Location, float SearchRadius, edict_t* IgnorePlayer)
 {
-	float distSq = sqrf(SearchRadius);
+	const float distSq = sqrf(SearchRadius);
 
 	for (int i = 1; i <= gpGlobals->maxClients; i++)
 	{
@@ -231,7 +231,7 @@ std::vector<edict_t*> AITAC_GetAllPlayersOnTeamWithLOS(int Team, const Vector& L
 {
 	std::vector<edict_t*> Results;
 
-	float distSq = sqrf(SearchRadius);
+	const float distSq = sqrf(SearchRadius);
 
 	for (int i = 1; i <= gpGlobals->maxClients; i++)
 	{
@@ -255,7 +255,7 @@ int AITAC_GetNumPlayersOnTeamWithLOS(int Team, const Vector& Location, float Sea
 {
 	int Result = 0;
 
-	float distSq = sqrf(SearchRadius);
+	const float distSq = sqrf(SearchRadius);
 
 	for (int i = 1; i <= gpGlobals->maxClients; i++)
 	{
@@ -279,7 +279,7 @@ edict_t* AITAC_GetNearestHumanAtLocation(const int Team, const Vector Location, 
 {
 	edict_t* Result = nullptr;
 
-	float distSq = sqrf(MaxSearchRadius);
+	const float distSq = sqrf(MaxSearchRadius);
 
 	for (int i = 1; i <= gpGlobals->maxClients; i++)
 	{
@@ -303,7 +303,7 @@ int AITAC_GetNumDeadPlayersOnTeam(const int Team)
 {
 	int Result = 0;
 
-	std::vector<edict_t*> TeamPlayers = AIMGR_GetAllPlayersOnTeam(Team);
+	const std::vector<edict_t*> TeamPlayers = AIMGR_GetAllPlayersOnTeam(Team);
 
 	for (auto it = TeamPlayers.begin(); it != TeamPlayers.end(); it++)
 	{
@@ -315,7 +315,7 @@ int AITAC_GetNumDeadPlayersOnTeam(const int Team)
 
 bool AITAC_AnyPlayerOnTeamWithLOS(int Team, const Vector& Location, float SearchRadius)
 {
-	float distSq = sqrf(SearchRadius);
+	const float distSq = sqrf(SearchRadius);
 
 	std::vector<edict_t*> Players = AIMGR_GetAllPlayersOnTeam(Team);
 

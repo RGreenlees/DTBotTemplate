@@ -1,5 +1,5 @@
 //
-// EvoBot - Neoptolemus' Natural Selection bot, based on Botman's HPB bot template
+// DTBot - Neoptolemus' Recast/Detour base GoldSrc bot, based on Botman's HPB bot template
 //
 // bot_navigation.h
 // 
@@ -175,6 +175,10 @@ bool BotIsAtLocation(const AvHAIPlayer* pBot, const Vector Destination);
 
 // Sets the bot's desired movement direction and performs jumps/crouch/etc. to traverse the current path point
 void NewMove(AvHAIPlayer* pBot);
+// Sets the bot's desired movement direction and performs jumps/crouch/etc. to traverse the current path point
+void NewSwimMove(AvHAIPlayer* pBot);
+// Sets the bot's desired movement direction and performs jumps/crouch/etc. to traverse the current path point
+void NewFlightMove(AvHAIPlayer* pBot);
 // Returns true if the bot has completed the current movement along their path
 bool HasBotReachedPathPoint(const AvHAIPlayer* pBot);
 bool HasBotCompletedLadderMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
@@ -186,6 +190,8 @@ bool HasBotCompletedObstacleMove(const AvHAIPlayer* pBot, Vector MoveStart, Vect
 
 // Returns true if the bot is considered to have strayed off the path (e.g. missed a jump and fallen)
 bool IsBotOffPath(const AvHAIPlayer* pBot);
+bool IsBotOffFlightPath(const AvHAIPlayer* pBot);
+bool IsBotOffSwimPath(const AvHAIPlayer* pBot);
 bool IsBotOffLadderNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
 bool IsBotOffWalkNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
 bool IsBotOffFallNode(const AvHAIPlayer* pBot, Vector MoveStart, Vector MoveEnd, Vector NextMoveDestination, NavMovementFlag NextMoveFlag);
@@ -204,6 +210,8 @@ void FallMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint)
 // Called by NewMove, determines the movement direction and inputs required to climb a ladder to reach endpoint
 void LadderMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight, unsigned char NextArea);
 
+Vector GetLadderMountPoint(const edict_t* MountLadder, const Vector StartPoint);
+
 // Called by NewMove, determines the movement direction and inputs required to use a moving platform to reach an end point
 void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPoint, edict_t* PlatformEdict);
 
@@ -212,7 +220,7 @@ bool UTIL_TriggerHasBeenRecentlyActivated(edict_t* TriggerEntity);
 // Will check for any func_breakable which might be in the way (e.g. window, vent) and make the bot aim and attack it to break it. Marines will switch to knife to break it.
 void CheckAndHandleBreakableObstruction(AvHAIPlayer* pBot, const Vector MoveFrom, const Vector MoveTo, unsigned int MovementFlags);
 
-void CheckAndHandleDoorObstruction(AvHAIPlayer* pBot);
+void CheckAndHandleDoorObstruction(AvHAIPlayer* pBot, bot_path_node CurrentPathNode);
 
 DynamicMapObject* UTIL_GetNearestObjectTrigger(const Vector Location, DynamicMapObject* Object, edict_t* IgnoreTrigger, bool bCheckBlockedByDoor);
 bool UTIL_IsPathBlockedByObject(const NavAgentProfile& NavProfile, const Vector StartLoc, const Vector EndLoc, DynamicMapObject* SearchObject);
@@ -282,7 +290,7 @@ bool BotRecalcPath(AvHAIPlayer* pBot, const Vector Destination);
 	Will handle path calculation, following the path, detecting if stuck and trying to unstick itself.
 	Will only recalculate paths if it decides it needs to, so is safe to call every frame.
 */
-bool MoveTo(AvHAIPlayer* pBot, const Vector Destination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist = max_ai_use_reach);
+bool NAV_MoveTo(AvHAIPlayer* pBot, const Vector Destination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist = max_ai_use_reach);
 
 void UpdateBotStuck(AvHAIPlayer* pBot);
 
@@ -308,6 +316,8 @@ Vector AdjustPointForPathfinding(unsigned int NavMeshIndex, const Vector Point, 
 dtStatus FindFlightPathToPoint(const NavAgentProfile& NavProfile, Vector FromLocation, Vector ToLocation, std::vector<bot_path_node>& path, float MaxAcceptableDistance);
 
 Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector TargetPoint, const Vector NextPoint, const float IterationStep, const float MinIdealHeight, const float MaxHeight);
+
+Vector NAV_GetBotPathStartPoint(AvHAIPlayer* pBot, const Vector& Destination);
 
 // Similar to FindPathToPoint, but you can specify a max acceptable distance for partial results. Will return a failure if it can't reach at least MaxAcceptableDistance away from the ToLocation
 dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle, const Vector ToLocation, std::vector<bot_path_node>& path, float MaxAcceptableDistance);

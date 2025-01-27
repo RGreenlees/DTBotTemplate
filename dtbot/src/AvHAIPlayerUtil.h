@@ -27,7 +27,7 @@ Player Status Checks
 bool IsPlayerActiveInGame(const edict_t* Player);
 // Is the player a human?
 bool IsPlayerHuman(const edict_t* Player);
-// Is the player a bot (includes non-EvoBot fake clients)?
+// Is the player a bot (includes other bot fake clients)?
 bool IsPlayerBot(const edict_t* Player);
 // Is the player dead and waiting to respawn?
 bool IsPlayerDead(const edict_t* Player);

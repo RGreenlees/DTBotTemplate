@@ -1,5 +1,5 @@
 //
-// EvoBot - Neoptolemus' Natural Selection bot, based on Botman's HPB bot template
+// DTBot - Neoptolemus' Recast/Detour base GoldSrc bot, based on Botman's HPB bot template
 //
 // bot_client.cpp
 // 

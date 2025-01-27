@@ -1,5 +1,5 @@
 //
-// EvoBot - Neoptolemus' Natural Selection bot, based on Botman's HPB bot template
+// DTBot - Neoptolemus' Recast/Detour base GoldSrc bot, based on Botman's HPB bot template
 //
 // bot_navigation.cpp
 // 
@@ -36,7 +36,7 @@ using namespace std;
 vector<DynamicMapPrototype> MapObjectPrototypes;
 vector<DynamicMapObject> DynamicMapObjects;
 
-nav_mesh NavMeshes[NUM_NAV_MESHES] = { }; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
+nav_mesh NavMeshes[NUM_NAV_MESHES] = { };
 
 vector<NavAgentProfile> BaseAgentProfiles;
 
@@ -941,9 +941,11 @@ Vector AdjustPointForPathfinding(unsigned int NavMeshIndex, const Vector Point, 
 {
 	if (vIsZero(Point) || NavMeshIndex > NUM_NAV_MESHES) { return ZERO_VECTOR; }
 
+	if (NAV_IsPointInSwimArea(Point)) { return Point; }
+
 	Vector ProjectedPoint = UTIL_ProjectPointToNavmesh(NavMeshIndex, Point, NavProfile);
 
-	int PointContents = UTIL_PointContents(ProjectedPoint);
+	int PointContents = UTIL_PointContents(ProjectedPoint);	
 
 	if (PointContents == CONTENTS_SOLID)
 	{
@@ -1266,8 +1268,40 @@ dtStatus FindPathClosestToPoint(const NavAgentProfile& NavProfile, const Vector 
 		return DT_FAILURE;
 	}
 
-	Vector FromFloorLocation = AdjustPointForPathfinding(NavProfile.NavMeshIndex, FromLocation, NavProfile);
-	Vector ToFloorLocation = AdjustPointForPathfinding(NavProfile.NavMeshIndex, ToLocation, NavProfile);
+	Vector FromFloorLocation = FromLocation;
+	Vector ToFloorLocation = ToLocation;
+
+	if (!NAV_IsPointInSwimArea(FromLocation))
+	{
+		FromFloorLocation = AdjustPointForPathfinding(NavProfile.NavMeshIndex, FromLocation, NavProfile);
+	}
+	else
+	{
+		TraceResult Hit;
+
+		UTIL_TraceLine(FromLocation, FromLocation - Vector(0.0f, 0.0f, 1000.0f), ignore_monsters, nullptr, &Hit);
+
+		if (Hit.flFraction < 1.0f)
+		{
+			FromFloorLocation = Hit.vecEndPos;
+		}
+	}
+
+	if (!NAV_IsPointInSwimArea(ToLocation))
+	{
+		ToFloorLocation = AdjustPointForPathfinding(NavProfile.NavMeshIndex, ToLocation, NavProfile);
+	}
+	else
+	{
+		TraceResult Hit;
+
+		UTIL_TraceLine(ToLocation, ToLocation - Vector(0.0f, 0.0f, 1000.0f), ignore_monsters, nullptr, &Hit);
+
+		if (Hit.flFraction < 1.0f)
+		{
+			ToFloorLocation = Hit.vecEndPos;
+		}
+	}
 
 	float pStartPos[3] = { FromFloorLocation.x, FromFloorLocation.z, -FromFloorLocation.y };
 	float pEndPos[3] = { ToFloorLocation.x, ToFloorLocation.z, -ToFloorLocation.y };
@@ -1310,7 +1344,25 @@ dtStatus FindPathClosestToPoint(const NavAgentProfile& NavProfile, const Vector 
 
 		if (dtVdistSqr(EndNearest, epos) > sqrf(MaxAcceptableDistance))
 		{
-			return DT_FAILURE;
+			if (!NAV_IsPointInSwimArea(ToLocation))
+			{
+				return DT_FAILURE;
+			}
+			else
+			{
+				TraceResult Hit;
+				Vector StartTrace = Vector(epos[0], -epos[2], epos[1] + 5.0f);
+				UTIL_TraceLine(StartTrace, ToLocation, ignore_monsters, nullptr, &Hit);
+
+				if (Hit.fAllSolid || (Hit.flFraction < 1.0f && vDist3DSq(Hit.vecEndPos, ToLocation) > sqrf(MaxAcceptableDistance)))
+				{
+					return DT_FAILURE;
+				}
+				else
+				{
+					dtVcopy(EndNearest, epos);
+				}
+			}
 		}
 		else
 		{
@@ -1407,12 +1459,108 @@ dtStatus FindPathClosestToPoint(const NavAgentProfile& NavProfile, const Vector 
 		path.push_back(NextPathNode);
 	}
 
+	if (NAV_IsPointInSwimArea(ToLocation))
+	{
+		bot_path_node FinalSwimBit;
+		FinalSwimBit.area = NAV_AREA_WALK;
+		FinalSwimBit.flag = NAV_FLAG_WALK;
+		FinalSwimBit.FromLocation = path.back().Location;
+		FinalSwimBit.Location = ToLocation;
+
+		path.push_back(FinalSwimBit);
+	}
+
 	return DT_SUCCESS;
+}
+
+Vector NAV_GetBotPathStartPoint(AvHAIPlayer* pBot, const Vector& Destination)
+{
+	int NavMeshIndex = pBot->BotNavInfo.NavProfile.NavMeshIndex;
+
+	if (pBot->Edict->v.flags & FL_INWATER)
+	{
+		return pBot->CurrentFloorPosition;
+	}
+
+	Vector Result = AdjustPointForPathfinding(NavMeshIndex, pBot->CurrentFloorPosition, pBot->BotNavInfo.NavProfile);
+
+	// If the bot currently has a path, then let's calculate the navigation from the "from" point rather than our exact position right now
+	if (pBot->BotNavInfo.CurrentPathPoint < pBot->BotNavInfo.CurrentPath.size())
+	{
+		bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
+
+		if (CurrentPathNode.flag == NAV_FLAG_WALK)
+		{
+			bool bFromReachable = UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, CurrentPathNode.Location);
+			bool bToReachable = UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, CurrentPathNode.FromLocation);
+			if (bFromReachable && bToReachable)
+			{
+				Result = pBot->CurrentFloorPosition;
+			}
+			else if (bFromReachable)
+			{
+				Result = CurrentPathNode.FromLocation;
+			}
+			else
+			{
+				Result = CurrentPathNode.Location;
+			}
+		}
+		else
+		{
+			Result = CurrentPathNode.FromLocation;
+		}
+	}
+	else
+	{
+		// Add a slight bias towards trying to move forward if on a railing or other narrow bit of navigable terrain
+		// rather than potentially dropping back off it the wrong way
+		Vector GeneralDir = UTIL_GetVectorNormal2D(Destination - pBot->CurrentFloorPosition);
+		Vector CheckLocation = Result + (GeneralDir * 16.0f);
+
+		Vector AdjustedCheckLocation = AdjustPointForPathfinding(NavMeshIndex, CheckLocation, pBot->BotNavInfo.NavProfile);
+
+		if (!vIsZero(AdjustedCheckLocation))
+		{
+			Result = AdjustedCheckLocation;
+		}
+	}
+
+	return Result;
 }
 
 dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle, const Vector ToLocation, vector<bot_path_node>& path, float MaxAcceptableDistance)
 {
 	if (!pBot) { return DT_FAILURE; }
+
+	bool bBotIsSwimming = (pBot->Edict->v.flags & FL_INWATER);
+
+	// First check: if we're swimming, see if we can just swim directly to it!
+	if (bBotIsSwimming && NAV_IsPointInSwimArea(ToLocation))
+	{
+		TraceResult Hit;
+		int hull_index = GetPlayerHullIndex(pBot->Edict);
+
+		UTIL_TraceHull(pBot->Edict->v.origin, ToLocation, ignore_monsters, hull_index, nullptr, &Hit);
+
+		if (!Hit.fStartSolid && !Hit.fAllSolid)
+		{
+			if (Hit.flFraction >= 1.0f || vDist3DSq(Hit.vecEndPos, ToLocation) < sqrf(MaxAcceptableDistance))
+			{
+				path.clear();
+
+				bot_path_node StartPoint;
+				StartPoint.FromLocation = pBot->Edict->v.origin;
+				StartPoint.Location = ToLocation;
+				StartPoint.area = NAV_AREA_WALK;
+				StartPoint.flag = NAV_FLAG_WALK;
+
+				path.push_back(StartPoint);
+
+				return DT_SUCCESS;
+			}
+		}
+	}
 
 	if (pBot->BotNavInfo.NavProfile.bFlyingProfile)
 	{
@@ -1430,50 +1578,7 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 		return DT_FAILURE;
 	}
 
-	Vector FromLocation = pBot->CurrentFloorPosition;
-	Vector FromFloorLocation = FromLocation;
-
-	// If the bot currently has a path, then let's calculate the navigation from the "from" point rather than our exact position right now
-	if (pBot->BotNavInfo.CurrentPathPoint < pBot->BotNavInfo.CurrentPath.size())
-	{
-		bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
-
-		if (CurrentPathNode.flag == NAV_FLAG_WALK)
-		{
-			bool bFromReachable = UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, CurrentPathNode.Location);
-			bool bToReachable = UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, CurrentPathNode.FromLocation);
-			if (bFromReachable && bToReachable)
-			{
-				FromFloorLocation = pBot->CurrentFloorPosition;
-			}
-			else if (bFromReachable)
-			{
-				FromFloorLocation = CurrentPathNode.FromLocation;
-			}
-			else
-			{
-				FromFloorLocation = CurrentPathNode.Location;
-			}
-		}
-		else
-		{
-			FromFloorLocation = CurrentPathNode.FromLocation;
-		}
-	}
-	else
-	{
-		// Add a slight bias towards trying to move forward if on a railing or other narrow bit of navigable terrain
-		// rather than potentially dropping back off it the wrong way
-		Vector GeneralDir = UTIL_GetVectorNormal2D(ToLocation - pBot->CurrentFloorPosition);
-		Vector CheckLocation = FromLocation + (GeneralDir * 16.0f);
-
-		Vector FromFloorLocation = AdjustPointForPathfinding(NavMeshIndex, CheckLocation, pBot->BotNavInfo.NavProfile);
-
-		if (vIsZero(FromFloorLocation))
-		{
-			FromFloorLocation = AdjustPointForPathfinding(NavMeshIndex, FromLocation, pBot->BotNavInfo.NavProfile);
-		}
-	}
+	Vector FromFloorLocation = NAV_GetBotPathStartPoint(pBot, ToLocation);
 
 	DynamicMapObject* LiftReference = UTIL_GetLiftReferenceByEdict(pBot->Edict->v.groundentity);
 	bool bMustDisembarkLiftFirst = false;
@@ -1486,7 +1591,7 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 
 		if (!vIsZero(LiftEnd))
 		{
-			FromLocation = LiftEnd;
+			FromFloorLocation = LiftEnd;
 
 			NavOffMeshConnection LiftOffMesh = UTIL_GetOffMeshConnectionForPlatform(pBot->BotNavInfo.NavProfile, LiftReference);
 
@@ -1500,6 +1605,18 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 	}
 
 	Vector ToFloorLocation = AdjustPointForPathfinding(NavMeshIndex, ToLocation, pBot->BotNavInfo.NavProfile);
+
+	if (NAV_IsPointInSwimArea(ToLocation))
+	{
+		TraceResult Hit;
+
+		UTIL_TraceLine(ToLocation, ToLocation - Vector(0.0f, 0.0f, 1000.0f), ignore_monsters, nullptr, &Hit);
+
+		if (Hit.flFraction < 1.0f)
+		{
+			ToFloorLocation = Hit.vecEndPos;
+		}
+	}
 
 	float pStartPos[3] = { FromFloorLocation.x, FromFloorLocation.z, -FromFloorLocation.y };
 	float pEndPos[3] = { ToFloorLocation.x, ToFloorLocation.z, -ToFloorLocation.y };
@@ -1542,7 +1659,25 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 
 		if (dtVdistSqr(EndNearest, epos) > sqrf(MaxAcceptableDistance))
 		{
-			return DT_FAILURE;
+			if (!NAV_IsPointInSwimArea(ToLocation))
+			{
+				return DT_FAILURE;
+			}
+			else
+			{
+				TraceResult Hit;
+				Vector StartTrace = Vector(epos[0], -epos[2], epos[1] + 5.0f);
+				UTIL_TraceLine(StartTrace, ToLocation, ignore_monsters, nullptr, &Hit);
+
+				if (Hit.fAllSolid || (Hit.flFraction < 1.0f && vDist3DSq(Hit.vecEndPos, ToLocation) > sqrf(MaxAcceptableDistance)))
+				{
+					return DT_FAILURE;
+				}
+				else
+				{
+					dtVcopy(EndNearest, epos);
+				}
+			}
 		}
 		else
 		{
@@ -1595,8 +1730,6 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 		bot_path_node NextPathNode;
 
 		NextPathNode.FromLocation = NodeFromLocation;
-
-
 
 		// The nav mesh doesn't always align perfectly with the floor, so align each nav point with the floor after generation
 		NextPathNode.Location.x = StraightPath[nIndex++];
@@ -1658,6 +1791,18 @@ dtStatus FindPathClosestToPoint(AvHAIPlayer* pBot, const BotMoveStyle MoveStyle,
 		NodeFromLocation = NextPathNode.Location;
 
 		path.push_back(NextPathNode);
+
+	}
+
+	if (NAV_IsPointInSwimArea(ToLocation))
+	{
+		bot_path_node FinalSwimBit;
+		FinalSwimBit.area = NAV_AREA_WALK;
+		FinalSwimBit.flag = NAV_FLAG_WALK;
+		FinalSwimBit.FromLocation = path.back().Location;
+		FinalSwimBit.Location = ToLocation;
+
+		path.push_back(FinalSwimBit);
 	}
 
 	return DT_SUCCESS;
@@ -1799,8 +1944,42 @@ bool UTIL_PointIsReachable(const NavAgentProfile &NavProfile, const Vector FromL
 		return false;
 	}
 
-	float pStartPos[3] = { FromLocation.x, FromLocation.z, -FromLocation.y };
-	float pEndPos[3] = { ToLocation.x, ToLocation.z, -ToLocation.y };
+	bool bStartInWater = NAV_IsPointInSwimArea(FromLocation);
+	bool bEndInWater = NAV_IsPointInSwimArea(ToLocation);
+
+	if (bStartInWater && bEndInWater)
+	{
+		if (UTIL_QuickHullTrace(nullptr, FromLocation, ToLocation)) { return true; }
+	}
+
+	float pStartPos[3] = {FromLocation.x, FromLocation.z, -FromLocation.y};
+	float pEndPos[3] = {ToLocation.x, ToLocation.z, -ToLocation.y};
+
+	if (bStartInWater)
+	{
+		TraceResult Hit;
+		UTIL_TraceLine(FromLocation, FromLocation - Vector(0.0f, 0.0f, 1000.0f), ignore_monsters, nullptr, &Hit);
+
+		if (Hit.flFraction < 1.0f)
+		{
+			pStartPos[0] = Hit.vecEndPos.x;
+			pStartPos[1] = Hit.vecEndPos.z;
+			pStartPos[2] = -Hit.vecEndPos.y;
+		}
+	}
+
+	if (bEndInWater)
+	{
+		TraceResult Hit;
+		UTIL_TraceLine(ToLocation, ToLocation - Vector(0.0f, 0.0f, 1000.0f), ignore_monsters, nullptr, &Hit);
+
+		if (Hit.flFraction < 1.0f)
+		{
+			pEndPos[0] = Hit.vecEndPos.x;
+			pEndPos[1] = Hit.vecEndPos.z;
+			pEndPos[2] = -Hit.vecEndPos.y;
+		}
+	}
 
 	dtStatus status;
 	dtPolyRef StartPoly;
@@ -1809,15 +1988,8 @@ bool UTIL_PointIsReachable(const NavAgentProfile &NavProfile, const Vector FromL
 	float EndNearest[3];
 	dtPolyRef PolyPath[MAX_PATH_POLY];
 	int nPathCount = 0;
-
 	
-
 	float searchExtents[3] = { MaxAcceptableDistance, 50.0f, MaxAcceptableDistance };
-
-	if (NAV_IsPointInSwimArea(FromLocation) && NAV_IsPointInSwimArea(ToLocation))
-	{
-		if (UTIL_QuickHullTrace(nullptr, FromLocation, ToLocation)) { return true; }
-	}
 
 	// find the start polygon
 	status = m_navQuery->findNearestPoly(pStartPos, searchExtents, m_navFilter, &StartPoly, StartNearest);
@@ -1886,6 +2058,14 @@ bool HasBotReachedPathPoint(const AvHAIPlayer* pBot)
 		bot_path_node NextPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1];
 		NextMoveLocation = NextPathNode.Location;
 		NextMoveFlag = (NavMovementFlag)NextPathNode.flag;
+	}
+
+	if (NAV_IsPointInSwimArea(MoveTo) || pBot->BotNavInfo.NavProfile.bFlyingProfile)
+	{
+		Vector ClosestPointToPath = vClosestPointOnLine(MoveFrom, MoveTo, pBot->Edict->v.origin);
+		bool bAtOrPastDestination = vEquals(ClosestPointToPath, MoveTo, 32.0f);
+
+		return vPointOverlaps3D(MoveTo, pBot->Edict->v.absmin, pBot->Edict->v.absmax) || bAtOrPastDestination;
 	}
 
 	switch (CurrentNavFlag)
@@ -1986,11 +2166,9 @@ bool HasBotCompletedLiftMove(const AvHAIPlayer* pBot, Vector MoveStart, Vector M
 	return vPointOverlaps3D(MoveEnd, pBot->Edict->v.absmin, pBot->Edict->v.absmax);
 }
 
-void CheckAndHandleDoorObstruction(AvHAIPlayer* pBot)
+void CheckAndHandleDoorObstruction(AvHAIPlayer* pBot, bot_path_node CurrentPathNode)
 {
-	if (pBot->BotNavInfo.CurrentPathPoint >= pBot->BotNavInfo.CurrentPath.size()) { return; }
-
-	bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
+	if (CurrentPathNode.flag == NAV_FLAG_DISABLED) { return; }
 
 	DynamicMapObject* IgnoreObject = UTIL_GetDynamicObjectByEdict(CurrentPathNode.Platform);
 
@@ -2202,6 +2380,7 @@ edict_t* UTIL_GetBreakableBlockingPathPoint(const Vector FromLocation, const Vec
 
 DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned int MovementFlag, DynamicMapObject* SearchObject, DynamicMapObject* IgnoreObject)
 {
+	if (IsFlagTeleportType((NavMovementFlag)MovementFlag)) { return nullptr;}
 
 	Vector FromLoc = FromLocation;
 	Vector ToLoc = ToLocation;
@@ -2336,6 +2515,17 @@ bool UTIL_IsPathBlockedByObject(const NavAgentProfile& NavProfile, const Vector 
 
 	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, EndLoc, NavProfile);
 
+	if (NAV_IsPointInSwimArea(EndLoc))
+	{
+		TraceResult Hit;
+		UTIL_TraceLine(EndLoc, EndLoc - Vector(0.0f, 0.0f, 1000.0f), ignore_monsters, nullptr, &Hit);
+
+		if (Hit.flFraction < 1.0f)
+		{
+			ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, Hit.vecEndPos, NavProfile);
+		}
+	}
+	
 	if (!ValidNavmeshPoint)
 	{
 		return false;
@@ -2496,52 +2686,6 @@ void NewMove(AvHAIPlayer* pBot)
 
 	bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
-	// HERE! Check if trigger is reachable from where the lift is now! It's currently messing up the button floor position
-	if (!(CurrentPathNode.flag & NAV_FLAG_PLATFORM))
-	{
-		for (int i = pBot->BotNavInfo.CurrentPathPoint + 1; i < pBot->BotNavInfo.CurrentPath.size(); i++)
-		{
-			bot_path_node FutureNode = pBot->BotNavInfo.CurrentPath[i];
-
-			if (FutureNode.flag & NAV_FLAG_PLATFORM)
-			{
-				DynamicMapObject* PlatformObject = UTIL_GetDynamicObjectByEdict(FutureNode.Platform);
-
-				if (PlatformObject && NAV_PlatformNeedsActivating(pBot, PlatformObject, FutureNode.FromLocation, FutureNode.Location))
-				{
-					DynamicMapObjectStop DesiredStartStop, DesiredEndStop;
-					GetDesiredPlatformStartAndEnd(PlatformObject, FutureNode.FromLocation, FutureNode.Location, DesiredStartStop, DesiredEndStop);
-
-					DynamicMapObject* Trigger = nullptr;
-
-					if (vEquals(UTIL_GetCentreOfEntity(PlatformObject->Edict), DesiredStartStop.StopLocation, 5.0f))
-					{
-						Trigger = NAV_GetTriggerReachableFromPlatform(FutureNode.FromLocation.z + 32.0f, PlatformObject);
-					}
-
-					if (!Trigger)
-					{
-						Trigger = NAV_GetBestTriggerForObject(PlatformObject, pBot->Edict, pBot->BotNavInfo.NavProfile);
-
-						if (Trigger)
-						{
-							if (PlatformObject->State == OBJECTSTATE_IDLE)
-							{
-								NAV_AddUseMovementTask(pBot, Trigger->Edict, Trigger);
-							}
-							else
-							{
-								NAV_AddMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, Trigger->Edict), nullptr);
-							}
-							return;
-						}
-					}					
-				}
-				break;
-			}
-		}
-	}	
-
 	Vector MoveFrom = CurrentPathNode.FromLocation;
 	Vector MoveTo = CurrentPathNode.Location;
 
@@ -2609,7 +2753,144 @@ void NewMove(AvHAIPlayer* pBot)
 
 	HandlePlayerAvoidance(pBot, MoveTo);
 
-	CheckAndHandleDoorObstruction(pBot);
+}
+
+void NewSwimMove(AvHAIPlayer* pBot)
+{
+	if (pBot->BotNavInfo.CurrentPath.size() == 0 || pBot->BotNavInfo.CurrentPathPoint >= pBot->BotNavInfo.CurrentPath.size())
+	{
+		return;
+	}
+
+	bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
+
+	Vector MoveFrom = CurrentPathNode.FromLocation;
+	Vector MoveTo = CurrentPathNode.Location;
+
+	NavArea CurrentNavArea = (NavArea)CurrentPathNode.area;
+	NavMovementFlag CurrentNavFlags = (NavMovementFlag)CurrentPathNode.flag;
+
+	// Used to anticipate if we're about to enter a crouch area so we can start crouching early
+	unsigned char NextArea = NAV_AREA_WALK;
+
+	if (pBot->BotNavInfo.CurrentPathPoint < pBot->BotNavInfo.CurrentPath.size() - 1)
+	{
+		bot_path_node NextPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1];
+
+		NextArea = NextPathNode.area;
+
+		bool bIsNearNextPoint = (vDist2DSq(pBot->Edict->v.origin, NextPathNode.FromLocation) <= sqrf(50.0f));
+
+		// Start crouching early if we're about to enter a crouch path point
+		if (CanPlayerCrouch(pBot->Edict) && (CurrentNavArea == NAV_AREA_CROUCH || (NextArea == NAV_AREA_CROUCH && bIsNearNextPoint)))
+		{
+			pBot->Button |= IN_DUCK;
+		}
+	}
+
+	bool TargetPointIsInWater = NAV_IsPointInSwimArea(MoveTo);
+
+	bool bHasNextPoint = pBot->BotNavInfo.CurrentPathPoint < (pBot->BotNavInfo.CurrentPath.size() - 1);
+	bool NextPointInWater = TargetPointIsInWater;
+
+	bool bShouldSurface = (bHasNextPoint && !NextPointInWater && vDist2DSq(pBot->Edict->v.origin, CurrentPathNode.Location) < sqrf(100.0f));
+
+	if (TargetPointIsInWater && !bShouldSurface)
+	{
+		BotMoveLookAt(pBot, CurrentPathNode.Location);
+		pBot->desiredMovementDir = UTIL_GetForwardVector2D(pBot->Edict->v.angles);
+
+		// While moving, check to make sure we're not obstructed by a func_breakable, e.g. vent or window.
+		CheckAndHandleBreakableObstruction(pBot, MoveFrom, MoveTo, CurrentNavFlags);
+
+		HandlePlayerAvoidance(pBot, MoveTo);
+
+		return;
+	}
+
+	if (CurrentPathNode.flag == NAV_FLAG_LADDER)
+	{
+		if (IsPlayerOnLadder(pBot->Edict))
+		{
+			NewMove(pBot);
+			return;
+		}
+		else
+		{
+			edict_t* MountLadder = UTIL_GetNearestLadderAtPoint(CurrentPathNode.FromLocation);
+
+			if (!FNullEnt(MountLadder))
+			{
+				Vector LadderMountPoint = GetLadderMountPoint(MountLadder, CurrentPathNode.Location);
+				Vector LadderNormal = UTIL_GetVectorNormal2D(LadderMountPoint - UTIL_GetCentreOfEntity(MountLadder));
+				LadderMountPoint = LadderMountPoint + (LadderNormal * 48.0f);
+
+				if (pBot->Edict->v.origin.z >= MountLadder->v.absmin.z + 16.0f)
+				{
+					Vector ClosestPointOnLadder = UTIL_GetClosestPointOnEntityToLocation(LadderMountPoint, MountLadder);
+					Vector MountAngle = UTIL_GetVectorNormal2D(ClosestPointOnLadder - LadderMountPoint);
+					Vector BotAngle = UTIL_GetVectorNormal2D(ClosestPointOnLadder - pBot->Edict->v.origin);
+
+					float Dot = UTIL_GetDotProduct2D(MountAngle, BotAngle);
+
+					if (Dot > 0.9f)
+					{
+						LadderMountPoint = ClosestPointOnLadder;
+					}
+				}
+
+				BotDirectLookAt(pBot, LadderMountPoint);
+				pBot->desiredMovementDir = UTIL_GetForwardVector2D(pBot->Edict->v.v_angle);
+
+				return;
+			}
+		}
+	}
+
+	// Our target point is out of the water, so surface and try to get out of the water
+
+	float WaterLevel = UTIL_WaterLevel(pBot->Edict->v.origin, pBot->Edict->v.origin.z, pBot->Edict->v.origin.z + 500.0f);
+
+	float WaterDiff = WaterLevel - pBot->Edict->v.origin.z;
+
+	// If we're below the waterline by a significant amount, then swim up to surface before we move on
+	if (WaterDiff > 5.0f)
+	{
+		Vector MoveDir = UTIL_GetVectorNormal2D(CurrentPathNode.Location - pBot->Edict->v.origin);
+		pBot->desiredMovementDir = MoveDir;
+
+		if (WaterDiff > 10.0f)
+		{
+			BotMoveLookAt(pBot, pBot->Edict->v.origin + (MoveDir * 5.0f) + Vector(0.0f, 0.0f, 100.0f));
+		}
+		else
+		{
+			BotMoveLookAt(pBot, pBot->CurrentEyePosition + (MoveDir * 50.0f) + Vector(0.0f, 0.0f, 50.0f));
+		}
+	}
+	else
+	{
+		// We're at the surface, now tackle the path the usual way
+		if (pBot->BotNavInfo.NavProfile.bFlyingProfile)
+		{
+			NewFlightMove(pBot);
+		}
+		else
+		{
+			NewMove(pBot);
+		}
+
+		return;
+	}
+
+	// While moving, check to make sure we're not obstructed by a func_breakable, e.g. vent or window.
+	CheckAndHandleBreakableObstruction(pBot, MoveFrom, MoveTo, CurrentNavFlags);
+
+	HandlePlayerAvoidance(pBot, MoveTo);
+}
+
+void NewFlightMove(AvHAIPlayer* pBot)
+{
 
 }
 
@@ -3431,6 +3712,16 @@ void PlatformMove(AvHAIPlayer* pBot, const Vector StartPoint, const Vector EndPo
 		}
 	}
 
+}
+
+bool IsBotOffSwimPath(const AvHAIPlayer* pBot)
+{
+	return false;
+}
+
+bool IsBotOffFlightPath(const AvHAIPlayer* pBot)
+{
+	return false;
 }
 
 bool IsBotOffPath(const AvHAIPlayer* pBot)
@@ -4536,6 +4827,10 @@ bool NAV_GenerateNewBasePath(AvHAIPlayer* pBot, const Vector NewDestination, con
 			}
 		}
 
+		pBot->BotNavInfo.CurrentPath.clear();
+		pBot->BotNavInfo.CurrentPath.insert(pBot->BotNavInfo.CurrentPath.begin(), PendingPath.begin(), PendingPath.end());
+		BotNavInfo->CurrentPathPoint = 0;
+
 		BotNavInfo->ActualMoveDestination = BotNavInfo->CurrentPath.back().Location;
 
 		pBot->BotNavInfo.StuckInfo.bPathFollowFailed = false;
@@ -4767,6 +5062,8 @@ void NAV_ProgressMovementTask(AvHAIPlayer* pBot, AvHAIPlayerMoveTask& Task)
 
 	if (Task.TaskType == MOVE_TASK_USE)
 	{
+		UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, UTIL_GetCentreOfEntity(Task.TaskTarget));
+
 		if (IsPlayerInUseRange(pBot->Edict, Task.TaskTarget))
 		{
 			BotUseObject(pBot, Task.TaskTarget, false);
@@ -4777,6 +5074,8 @@ void NAV_ProgressMovementTask(AvHAIPlayer* pBot, AvHAIPlayerMoveTask& Task)
 
 	if (Task.TaskType == MOVE_TASK_BREAK)
 	{
+		UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, UTIL_GetCentreOfEntity(Task.TaskTarget));
+
 		AIWeaponType Weapon = WEAP_GetPlayerCurrentWeapon(pBot->Edict);
 
 		BotAttackResult AttackResult = PerformAttackLOSCheck(pBot, Weapon, Task.TaskTarget);
@@ -4803,26 +5102,12 @@ void NAV_ProgressMovementTask(AvHAIPlayer* pBot, AvHAIPlayerMoveTask& Task)
 		return;
 	}
 
-	if (pBot->Edict->v.flags & FL_INWATER)
-	{
-		BotFollowSwimPath(pBot);
-	}
-	else
-	{
-		if (pBot->BotNavInfo.NavProfile.bFlyingProfile)
-		{
-			BotFollowFlightPath(pBot, true);
-		}
-		else
-		{
-			BotFollowPath(pBot);
-		}
-	}
+	BotFollowPath(pBot);
 
 	BotMovementInputs(pBot);
 }
 
-bool MoveTo(AvHAIPlayer* pBot, const Vector Destination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist)
+bool NAV_MoveTo(AvHAIPlayer* pBot, const Vector Destination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist)
 {
 	// Trying to move nowhere, or our current location. Do nothing
 	if (vIsZero(Destination) || (vDist2D(pBot->Edict->v.origin, Destination) <= 6.0f && (fabs(pBot->CollisionHullBottomLocation.z - Destination.z) < 50.0f)))
@@ -5126,10 +5411,7 @@ void BotFollowFlightPath(AvHAIPlayer* pBot, bool bAllowSkip)
 
 	CheckAndHandleBreakableObstruction(pBot, MoveFrom, CurrentMoveDest, NAV_FLAG_WALK);
 
-	CheckAndHandleDoorObstruction(pBot);
-
 	BotMovementInputs(pBot);
-
 
 }
 
@@ -5293,6 +5575,25 @@ void BotFollowPath(AvHAIPlayer* pBot)
 		}
 	}
 
+	if (pBot->Edict->v.flags & FL_INWATER)
+	{
+		TraceResult Hit;
+
+		for (int i = pBot->BotNavInfo.CurrentPathPoint + 1; i < pBot->BotNavInfo.CurrentPath.size(); i++)
+		{
+			if (!NAV_IsPointInSwimArea(pBot->BotNavInfo.CurrentPath[i].Location)) { break; }
+
+			UTIL_TraceHull(pBot->Edict->v.origin, pBot->BotNavInfo.CurrentPath[i].Location, ignore_monsters, head_hull, nullptr, &Hit);
+
+			if (!Hit.fAllSolid && !Hit.fStartSolid && Hit.flFraction >= 1.0f)
+			{
+				pBot->BotNavInfo.CurrentPathPoint = i;
+				pBot->BotNavInfo.CurrentPath[i].FromLocation = pBot->Edict->v.origin;
+			}
+		}
+
+	}
+
 	bot_path_node CurrentNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
 
 	if (IsPlayerStandingOnPlayer(pBot->Edict) && CurrentNode.flag != NAV_FLAG_LADDER)
@@ -5329,7 +5630,22 @@ void BotFollowPath(AvHAIPlayer* pBot)
 		}
 	}
 
-	if (IsBotOffPath(pBot))
+	bool bIsOffPath = false;
+
+	if (pBot->Edict->v.flags & FL_INWATER)
+	{
+		bIsOffPath = IsBotOffSwimPath(pBot);
+	}
+	else if (pBot->BotNavInfo.NavProfile.bFlyingProfile)
+	{
+		bIsOffPath = IsBotOffFlightPath(pBot);
+	}
+	else
+	{
+		bIsOffPath = IsBotOffPath(pBot);
+	}
+
+	if (bIsOffPath)
 	{
 		pBot->BotNavInfo.StuckInfo.bPathFollowFailed = true;
 		ClearBotPath(pBot);
@@ -5338,9 +5654,82 @@ void BotFollowPath(AvHAIPlayer* pBot)
 
 	pBot->BotNavInfo.StuckInfo.bPathFollowFailed = false;
 
+	bot_path_node CurrentPathNode = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
+
+	// HERE! Check if trigger is reachable from where the lift is now! It's currently messing up the button floor position
+	if (!(CurrentPathNode.flag & NAV_FLAG_PLATFORM))
+	{
+		for (int i = pBot->BotNavInfo.CurrentPathPoint; i < pBot->BotNavInfo.CurrentPath.size(); i++)
+		{
+			bot_path_node FutureNode = pBot->BotNavInfo.CurrentPath[i];
+
+			if (FutureNode.flag & NAV_FLAG_PLATFORM)
+			{
+				DynamicMapObject* PlatformObject = UTIL_GetDynamicObjectByEdict(FutureNode.Platform);
+
+				if (PlatformObject && NAV_PlatformNeedsActivating(pBot, PlatformObject, FutureNode.FromLocation, FutureNode.Location))
+				{
+					DynamicMapObjectStop DesiredStartStop, DesiredEndStop;
+					GetDesiredPlatformStartAndEnd(PlatformObject, FutureNode.FromLocation, FutureNode.Location, DesiredStartStop, DesiredEndStop);
+
+					DynamicMapObject* Trigger = nullptr;
+
+					if (vEquals(UTIL_GetCentreOfEntity(PlatformObject->Edict), DesiredStartStop.StopLocation, 5.0f))
+					{
+						Trigger = NAV_GetTriggerReachableFromPlatform(FutureNode.FromLocation.z + 32.0f, PlatformObject);
+					}
+
+					if (!Trigger)
+					{
+						Trigger = NAV_GetBestTriggerForObject(PlatformObject, pBot->Edict, pBot->BotNavInfo.NavProfile);
+
+						if (Trigger)
+						{
+							if (PlatformObject->State == OBJECTSTATE_IDLE)
+							{
+								NAV_AddUseMovementTask(pBot, Trigger->Edict, Trigger);
+							}
+							else
+							{
+								NAV_AddMoveMovementTask(pBot, UTIL_GetButtonFloorLocation(pBot->BotNavInfo.NavProfile, pBot->Edict->v.origin, Trigger->Edict), nullptr);
+							}
+							return;
+						}
+					}
+				}
+			}
+			else
+			{
+				DynamicMapObject* BlockingObject = UTIL_GetObjectBlockingPathPoint(&FutureNode, nullptr, nullptr);
+
+				if (BlockingObject && BlockingObject->State == OBJECTSTATE_IDLE)
+				{
+					DynamicMapObject* Trigger = NAV_GetBestTriggerForObject(BlockingObject, FutureNode.FromLocation, pBot->BotNavInfo.NavProfile);
+
+					if (Trigger)
+					{
+						NAV_AddTriggerMovementTask(pBot, Trigger, BlockingObject);
+						return;
+					}
+				}
+			}
+		}
+	}
+
 	Vector MoveTo = CurrentNode.Location;
 
-	NewMove(pBot);
+	if (pBot->Edict->v.flags & FL_INWATER)
+	{
+		NewSwimMove(pBot);
+	}
+	else if (pBot->BotNavInfo.NavProfile.bFlyingProfile)
+	{
+		NewFlightMove(pBot);
+	}
+	else
+	{
+		NewMove(pBot);
+	}
 
 }
 
@@ -6005,6 +6394,11 @@ Vector UTIL_GetButtonFloorLocation(const NavAgentProfile& NavProfile, const Vect
 		ClosestPoint = UTIL_GetCentreOfEntity(ButtonEdict);
 	}
 
+	if (NAV_IsPointInSwimArea(ClosestPoint))
+	{
+		return ClosestPoint;
+	}
+
 	Vector ButtonAccessPoint = UTIL_ProjectPointToNavmesh(NavProfile.NavMeshIndex, ClosestPoint, NavProfile, Vector(100.0f, 100.0f, 100.0f));
 
 	if (vIsZero(ButtonAccessPoint))
@@ -6086,6 +6480,8 @@ void NAV_PopulateConnectionsAffectedByDynamicObject(DynamicMapObject* Object)
 
 			for (auto it = NavMeshes[i].MeshConnections.begin(); it != NavMeshes[i].MeshConnections.end(); it++)
 			{
+				if (IsFlagTeleportType((NavMovementFlag)it->ConnectionFlags)) { continue; }
+
 				Vector ConnStart = it->FromLocation + Vector(0.0f, 0.0f, 15.0f);
 				Vector ConnEnd = it->ToLocation + Vector(0.0f, 0.0f, 15.0f);
 				Vector MidPoint = ConnStart + ((ConnEnd - ConnStart) * 0.5f);

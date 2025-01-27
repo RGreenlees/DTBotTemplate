@@ -14,7 +14,7 @@ Nav meshes for the bot are generated externally by a specialised tool, and held 
 
 ## Basic Terminology
 
-* Recast - This is the framework that generates a nav mesh from a raw triangle input. It is not part of the evobot plugin as the nav meshes are not generated internally but instead by an external tool.
+* Recast - This is the framework that generates a nav mesh from a raw triangle input. It is not part of the DTBot plugin as the nav meshes are not generated internally but instead by an external tool.
 * Detour - This is the path-finding framework supplied by the recastnavigation that uses the nav mesh as an input. The sources for this are held in Detour and DetourTileCache.
 * Nav Mesh - This is the actual set of triangles that form the navigation mesh, made of polys called "dtPoly" by the Detour library.
 * Tile Cache - The nav mesh is broken up into tiles of 144x144 GoldSrc units. If the nav mesh needs to be modified at runtime (e.g. dynamic obstacle placed which blocks part of the mesh), then it only needs to rebuild the tiles affected rather than the entire nav mesh which would cause noticeable hitching.

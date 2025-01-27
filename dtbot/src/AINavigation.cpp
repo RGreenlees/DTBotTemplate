@@ -5062,8 +5062,6 @@ void NAV_ProgressMovementTask(AIPlayer* pBot, AIPlayerMoveTask& Task)
 
 	if (Task.TaskType == MOVE_TASK_USE)
 	{
-		UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, UTIL_GetCentreOfEntity(Task.TaskTarget));
-
 		if (IsPlayerInUseRange(pBot->Edict, Task.TaskTarget))
 		{
 			BotUseObject(pBot, Task.TaskTarget, false);
@@ -5074,8 +5072,6 @@ void NAV_ProgressMovementTask(AIPlayer* pBot, AIPlayerMoveTask& Task)
 
 	if (Task.TaskType == MOVE_TASK_BREAK)
 	{
-		UTIL_DrawLine(INDEXENT(1), pBot->Edict->v.origin, UTIL_GetCentreOfEntity(Task.TaskTarget));
-
 		AIWeaponType Weapon = WEAP_GetPlayerCurrentWeapon(pBot->Edict);
 
 		BotAttackResult AttackResult = PerformAttackLOSCheck(pBot, Weapon, Task.TaskTarget);
@@ -5730,7 +5726,6 @@ void BotFollowPath(AIPlayer* pBot)
 	{
 		NewMove(pBot);
 	}
-
 }
 
 void PerformUnstuckMove(AIPlayer* pBot, const Vector MoveDestination)

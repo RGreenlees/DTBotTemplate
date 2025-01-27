@@ -61,18 +61,15 @@ typedef enum
 	WEAPON_TYPE_30 = 30,	
 
 	WEAPON_MAX = 31
-}
-AIWeaponType;
+} AIWeaponType;
 
+// Reachability flag, quick short-hand to determine if a bot can reach a point or not
 typedef enum _AI_REACHABILITY_STATUS
 {
 	AI_REACHABILITY_NONE = 0,
-	AI_REACHABILITY_MARINE = 1u << 0,
-	AI_REACHABILITY_SKULK = 1u << 1,
-	AI_REACHABILITY_GORGE = 1u << 2,
-	AI_REACHABILITY_ONOS = 1u << 3,
-	AI_REACHABILITY_WELDER = 1u << 4,
-	AI_REACHABILITY_UNREACHABLE = 1u << 5,
+	AI_REACHABILITY_REGULAR = 1u << 0,
+
+	AI_REACHABILITY_UNREACHABLE = 1u << 1,
 
 	AI_REACHABILITY_ALL = -1
 } AIReachabilityStatus;
@@ -104,7 +101,7 @@ typedef struct _OFF_MESH_CONN
 	Vector ToLocation = ZERO_VECTOR; // The end point of the connection
 	unsigned int ConnectionFlags = 0; // The type of connection it is
 	unsigned int DefaultConnectionFlags = 0; // If this connection is being temporarily modified, what it should normally be
-	unsigned int ConnectionRef; // References to this connection on all defined nav meshes
+	unsigned int ConnectionRef = 0; // References to this connection on all defined nav meshes
 	edict_t* LinkedObject = nullptr;
 
 	bool IsValid()
@@ -124,13 +121,13 @@ typedef struct _TEMPORARY_OBSTACLE
 } NavTempObstacle;
 
 // Pending message a bot wants to say. Allows for a delay in sending a message to simulate typing, or prevent too many messages on the same frame
-typedef struct _BOT_MSG
+typedef struct _AI_CHAT_MESSAGE
 {
 	char msg[64] = { '\0' }; // Message to send
 	float SendTime = 0.0f; // When the bot should send this message
 	bool bIsPending = false; // Represents a valid pending message
 	bool bIsTeamSay = false; // Is this a team-only message?
-} bot_msg;
+} AIChatMessage;
 
 // How far a bot can be from a useable object when trying to interact with it. Used also for melee attacks. We make it slightly less than actual to avoid edge cases
 static const float max_ai_use_reach = 55.0f;
@@ -142,12 +139,12 @@ static const float min_ai_use_interval = 0.5f;
 static const float max_ai_jump_height = 62.0f;
 
 // Affects the bot's pathfinding choices
-enum BotMoveStyle
+typedef enum
 {
 	MOVESTYLE_NORMAL, // Most direct route to target
 	MOVESTYLE_AMBUSH, // Prefer wall climbing and vents
 	MOVESTYLE_HIDE // Prefer crouched areas like vents
-};
+} BotMoveStyle;
 
 // The list of potential task types for the bot_task structure
 typedef enum
@@ -173,10 +170,9 @@ typedef enum
 	TASK_REINFORCE_STRUCTURE,
 	TASK_SECURE_HIVE,
 	TASK_PLACE_MINE
-}
-BotTaskType;
+} BotTaskType;
 
-// g
+// The result of an attack check, determining whether the attack was/would be successful
 typedef enum
 {
 	ATTACK_SUCCESS,
@@ -184,8 +180,7 @@ typedef enum
 	ATTACK_OUTOFRANGE,
 	ATTACK_INVALIDTARGET,
 	ATTACK_NOWEAPON
-}
-BotAttackResult;
+} BotAttackResult;
 
 typedef enum
 {
@@ -205,9 +200,8 @@ typedef enum
 	MOVE_TASK_PICKUP
 } BotMovementTaskType;
 
-
 // Dynamic map object type
-enum DynamicMapObjectType
+typedef enum
 {
 	MAPOBJECT_STATIC = 0,   // Cannot be moved, permanent obstacle
 	MAPOBJECT_DOOR,			// Object type that moves between two points (e.g. a door) and can block off routes
@@ -218,17 +212,17 @@ enum DynamicMapObjectType
 	TRIGGER_SHOOT,			// Trigger activated by shooting it (damage to activate)
 	TRIGGER_BREAK,			// Trigger activated by breaking it (permanently destroy)
 	TRIGGER_ENV,			// Special trigger type for env_global
-	TRIGGER_MULTISOURCE	// Special trigger type for multisource
-};
+	TRIGGER_MULTISOURCE		// Special trigger type for multisource
+} DynamicMapObjectType;
 
 // Dynamic map object type
-enum DynamicMapObjectState
+typedef enum 
 {
 	OBJECTSTATE_IDLE = 0,   // Object is idling and not going to move until triggered
 	OBJECTSTATE_PREPARING,	// Object has been triggered and is getting ready to move
 	OBJECTSTATE_MOVING,		// Object is on the move
 	OBJECTSTATE_OPEN		// For buttons which don't move, this marks a button which has been pressed and is waiting to release for another use
-};
+} DynamicMapObjectState;
 
 // Bot path node. A path will be several of these strung together to lead the bot to its destination
 typedef struct _BOT_PATH_NODE
@@ -361,7 +355,7 @@ typedef struct AVH_AI_PLAYER
 
 	float LastTeleportTime = 0.0f; // Last time the bot teleported somewhere
 		
-	bot_msg ChatMessages[5]; // Bot can have up to 5 chat messages pending
+	AIChatMessage ChatMessages[5]; // Bot can have up to 5 chat messages pending
 
 	Vector DesiredLookDirection = ZERO_VECTOR; // What view angle is the bot currently turning towards
 	Vector InterpolatedLookDirection = ZERO_VECTOR; // Used to smoothly interpolate the bot's view rather than snap instantly like an aimbot

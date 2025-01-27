@@ -42,7 +42,7 @@ bool BotUseObject(AIPlayer* pBot, edict_t* Target, bool bContinuous);
 void BotSay(AIPlayer* pBot, bool bTeamSay, float Delay, char* textToSay);
 
 // Helper function so the bot can find an empty message slot in its list of pending messages to print out
-bot_msg* GetAvailableBotMsgSlot(AIPlayer* pBot);
+AIChatMessage* GetAvailableBotMsgSlot(AIPlayer* pBot);
 
 // Bot will attempt to drop the currently-held weapon
 void BotDropWeapon(AIPlayer* pBot);

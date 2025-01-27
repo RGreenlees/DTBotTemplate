@@ -164,7 +164,7 @@ bool BotUseObject(AIPlayer* pBot, edict_t* Target, bool bContinuous)
 	return false;
 }
 
-bot_msg* GetAvailableBotMsgSlot(AIPlayer* pBot)
+AIChatMessage* GetAvailableBotMsgSlot(AIPlayer* pBot)
 {
 	for (int i = 0; i < 5; i++)
 	{
@@ -176,7 +176,7 @@ bot_msg* GetAvailableBotMsgSlot(AIPlayer* pBot)
 
 void BotSay(AIPlayer* pBot, bool bTeamSay, float Delay, char* textToSay)
 {
-	bot_msg* msgSlot = GetAvailableBotMsgSlot(pBot);
+	AIChatMessage* msgSlot = GetAvailableBotMsgSlot(pBot);
 
 	if (msgSlot)
 	{

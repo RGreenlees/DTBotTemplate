@@ -9,7 +9,7 @@
 
 #include <vector>
 
-#include "AvHAIMath.h"
+#include "AIMath.h"
 
 #include "DetourStatus.h"
 #include "DetourNavMeshQuery.h"
@@ -75,14 +75,14 @@ typedef enum _AI_REACHABILITY_STATUS
 	AI_REACHABILITY_UNREACHABLE = 1u << 5,
 
 	AI_REACHABILITY_ALL = -1
-} AvHAIReachabilityStatus;
+} AIReachabilityStatus;
 
-typedef enum _AVHAINAVMESHSTATUS
+typedef enum _AINAVMESHSTATUS
 {
 	NAVMESH_STATUS_PENDING = 0,	// Waiting to try loading the navmesh
 	NAVMESH_STATUS_FAILED,		// Failed to load the navmesh
 	NAVMESH_STATUS_SUCCESS		// Successfully loaded the navmesh
-} AvHAINavMeshStatus;
+} AINavMeshStatus;
 
 typedef enum
 {
@@ -250,7 +250,7 @@ typedef struct _AVH_AI_PLAYER_MOVE_TASK
 	edict_t* TaskTarget = nullptr;
 	edict_t* TriggerToActivate = nullptr;
 	bool bPathGenerated = false;
-} AvHAIPlayerMoveTask;
+} AIPlayerMoveTask;
 
 typedef struct _AVH_AI_STUCK_TRACKER
 {
@@ -259,7 +259,7 @@ typedef struct _AVH_AI_STUCK_TRACKER
 	float TotalStuckTime = 0.0f; // Total time the bot has spent stuck
 	bool bPathFollowFailed = false;
 
-} AvHAIPlayerStuckTracker;
+} AIPlayerStuckTracker;
 
 // Contains the bot's current navigation info, such as current path
 typedef struct _NAV_STATUS
@@ -305,12 +305,12 @@ typedef struct _NAV_STATUS
 	NavAgentProfile NavProfile;
 	bool bNavProfileChanged = false;
 
-	AvHAIPlayerStuckTracker StuckInfo;
+	AIPlayerStuckTracker StuckInfo;
 
 	unsigned int SpecialMovementFlags = 0; // Any special movement flags required for the current path (e.g. needs to pick up an item)
 
-	std::vector<AvHAIPlayerMoveTask> MovementTasks;
-	AvHAIPlayerMoveTask UnstuckTask;
+	std::vector<AIPlayerMoveTask> MovementTasks;
+	AIPlayerMoveTask UnstuckTask;
 } nav_status;
 
 typedef struct _BOT_CURRENT_WEAPON_T
@@ -384,7 +384,7 @@ typedef struct AVH_AI_PLAYER
 
 	Vector TestLocation = ZERO_VECTOR;
 
-} AvHAIPlayer;
+} AIPlayer;
 
 
 #endif

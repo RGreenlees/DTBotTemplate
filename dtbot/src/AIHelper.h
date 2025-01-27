@@ -3,7 +3,7 @@
 #ifndef AVH_AI_HELPER_H
 #define AVH_AI_HELPER_H
 
-#include "AvHAIConstants.h"
+#include "AIConstants.h"
 
 #include <string>
 
@@ -24,7 +24,7 @@ Vector UTIL_GetFloorUnderEntity(const edict_t* Edict);
 Vector UTIL_GetClosestPointOnEntityToLocation(const Vector UserLocation, const edict_t* Entity);
 Vector UTIL_GetClosestPointOnEntityToLocation(const Vector Location, const edict_t* Entity, const Vector EntityLocation);
 
-void AIDEBUG_DrawBotPath(AvHAIPlayer* pBot, float DrawTime = 0.0f);
+void AIDEBUG_DrawBotPath(AIPlayer* pBot, float DrawTime = 0.0f);
 void AIDEBUG_DrawPath(std::vector<bot_path_node>& path, float DrawTime = 0.0f);
 
 // Draws a white line between start and end for the given player (pEntity) for 0.1s

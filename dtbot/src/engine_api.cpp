@@ -36,9 +36,9 @@
 
 #include <meta_api.h>
 
-#include "AvHAIPlayerManager.h"
-#include "AvHAIConfig.h"
-#include "bot_client.h"
+#include "AIPlayerManager.h"
+#include "AIConfig.h"
+#include "AIClient.h"
 
 extern char g_argv[1024];
 extern bool isFakeClientCommand;

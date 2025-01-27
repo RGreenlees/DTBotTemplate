@@ -3,7 +3,7 @@
 #ifndef AVH_AI_CONFIG_H
 #define AVH_AI_CONFIG_H
 
-#include "AvHAIConstants.h"
+#include "AIConstants.h"
 
 #include <string>
 

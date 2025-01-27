@@ -3,7 +3,7 @@
 #ifndef AVH_AI_PLAYER_HELPER_H
 #define AVH_AI_PLAYER_HELPER_H
 
-#include "AvHAIConstants.h"
+#include "AIConstants.h"
 
 // How far a bot can be from a useable object when trying to interact with it. Used also for melee attacks
 static const float max_player_use_reach = 60.0f;

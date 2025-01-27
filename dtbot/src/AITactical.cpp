@@ -6,14 +6,14 @@
 // Contains gorge-related functions. Needs refactoring into helper function file
 //
 
-#include "AvHAITactical.h"
-#include "AvHAINavigation.h"
-#include "AvHAIMath.h"
-#include "AvHAIPlayerUtil.h"
-#include "AvHAIHelper.h"
-#include "AvHAIConstants.h"
-#include "AvHAIPlayerManager.h"
-#include "AvHAIConfig.h"
+#include "AITactical.h"
+#include "AINavigation.h"
+#include "AIMath.h"
+#include "AIPlayerUtil.h"
+#include "AIHelper.h"
+#include "AIConstants.h"
+#include "AIPlayerManager.h"
+#include "AIConfig.h"
 
 #include <float.h>
 
@@ -47,11 +47,11 @@ void AITAC_OnNavMeshModified()
 {
 	if (!NavmeshLoaded()) { return; }
 
-	std::vector<AvHAIPlayer*> AllAIPlayers = AIMGR_GetAllAIPlayers();
+	std::vector<AIPlayer*> AllAIPlayers = AIMGR_GetAllAIPlayers();
 
 	for (auto it = AllAIPlayers.begin(); it != AllAIPlayers.end(); it++)
 	{
-		AvHAIPlayer* ThisPlayer = (*it);
+		AIPlayer* ThisPlayer = (*it);
 
 		if (IsPlayerActiveInGame(ThisPlayer->Edict) && ThisPlayer->BotNavInfo.CurrentPath.size() > 0)
 		{

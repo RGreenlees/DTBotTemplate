@@ -1,14 +1,14 @@
 
-#include "AvHAIPlayerUtil.h"
-#include "AvHAIPlayer.h"
-#include "AvHAIHelper.h"
-#include "AvHAIPlayerManager.h"
-#include "AvHAITactical.h"
-#include "AvHAIWeaponHelper.h"
+#include "AIPlayerUtil.h"
+#include "AIPlayer.h"
+#include "AIHelper.h"
+#include "AIPlayerManager.h"
+#include "AITactical.h"
+#include "AIWeaponHelper.h"
 
 #include <extdll.h>
 
-#include "AvHAIMath.h"
+#include "AIMath.h"
 #include "../pm_shared/pm_shared.h"
 #include "../pm_shared/pm_defs.h"
 

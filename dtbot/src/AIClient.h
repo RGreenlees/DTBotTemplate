@@ -1,15 +1,15 @@
 //
 // DTBot - Neoptolemus' Recast/Detour base GoldSrc bot, based on Botman's HPB bot template
 //
-// bot_client.h
+// AIClient.h
 // 
 // Contains all network message handling by the bot
 //
 
 #pragma once
 
-#ifndef BOT_CLIENT_H
-#define BOT_CLIENT_H
+#ifndef AIClient_H
+#define AIClient_H
 
 #include "extdll.h"
 

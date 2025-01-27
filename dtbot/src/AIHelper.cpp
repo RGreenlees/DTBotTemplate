@@ -1,8 +1,8 @@
-#include "AvHAIHelper.h"
-#include "AvHAIMath.h"
-#include "AvHAIPlayerUtil.h"
-#include "AvHAITactical.h"
-#include "AvHAINavigation.h"
+#include "AIHelper.h"
+#include "AIMath.h"
+#include "AIPlayerUtil.h"
+#include "AITactical.h"
+#include "AINavigation.h"
 
 #include <enginecallback.h>		// ALERT()
 #include "osdep.h"				// win32 vsnprintf, etc
@@ -174,7 +174,7 @@ Vector UTIL_GetClosestPointOnEntityToLocation(const Vector Location, const edict
 	return Vector(clampf(Location.x, MinVec.x, MaxVec.x), clampf(Location.y, MinVec.y, MaxVec.y), clampf(Location.z, MinVec.z, MaxVec.z));
 }
 
-void AIDEBUG_DrawBotPath(AvHAIPlayer* pBot, float DrawTime)
+void AIDEBUG_DrawBotPath(AIPlayer* pBot, float DrawTime)
 {
 	AIDEBUG_DrawPath(pBot->BotNavInfo.CurrentPath, DrawTime);
 

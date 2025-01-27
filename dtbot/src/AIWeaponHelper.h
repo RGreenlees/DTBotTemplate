@@ -3,7 +3,7 @@
 #ifndef AVH_AI_WEAPON_HELPER_H
 #define AVH_AI_WEAPON_HELPER_H
 
-#include "AvHAIPlayer.h"
+#include "AIPlayer.h"
 
 typedef enum
 {
@@ -35,7 +35,7 @@ typedef struct _AI_PLAYER_INVENTORY
 	float RefireTimes[MAX_AMMO_SLOTS]; // Times when each weapon can be refired
 	AIWeaponType CurrentWeapon = WEAPON_INVALID; // Index of the currently-held weapon;
 
-} AvHAIPlayerInventory;
+} AIPlayerInventory;
 
 AIWeaponType WEAP_GetPlayerCurrentWeapon(const edict_t* Player);
 int WEAP_GetPlayerCurrentWeaponClipAmmo(const edict_t* Player);
@@ -61,7 +61,7 @@ bool WEAP_IsMeleeWeapon(const AIWeaponType Weapon);
 Vector UTIL_GetGrenadeThrowTarget(edict_t* Player, const Vector TargetLocation, const float ExplosionRadius, bool bPrecise);
 
 // Orders the bot to begin reloading their current weapon
-void WEAP_BotReloadCurrentWeapon(AvHAIPlayer* pBot);
+void WEAP_BotReloadCurrentWeapon(AIPlayer* pBot);
 
 // Gets the end-to-end reload time for the requested weapon
 float WEAP_GetReloadTimeForWeapon(AIWeaponType Weapon);
@@ -69,7 +69,7 @@ float WEAP_GetReloadTimeForWeapon(AIWeaponType Weapon);
 bool WEAP_CanInterruptWeaponReload(AIWeaponType Weapon);
 
 // Makes the bot interrupt their reload if they are currently reloading
-void InterruptReload(AvHAIPlayer* pBot);
+void InterruptReload(AIPlayer* pBot);
 
 bool WEAP_IsHitScanWeapon(AIWeaponType Weapon);
 
@@ -79,8 +79,8 @@ bool WEAP_IsWeaponAffectedByGravity(AIWeaponType Weapon);
 // Returns the time (in seconds) until the player can refire their weapon
 float WEAP_GetTimeUntilPlayerNextRefire(const edict_t* Player);
 
-BotAttackResult PerformAttackLOSCheck(AvHAIPlayer* pBot, const AIWeaponType Weapon, const edict_t* Target);
-BotAttackResult PerformAttackLOSCheck(AvHAIPlayer* pBot, const AIWeaponType Weapon, const Vector TargetLocation, const edict_t* Target);
+BotAttackResult PerformAttackLOSCheck(AIPlayer* pBot, const AIWeaponType Weapon, const edict_t* Target);
+BotAttackResult PerformAttackLOSCheck(AIPlayer* pBot, const AIWeaponType Weapon, const Vector TargetLocation, const edict_t* Target);
 BotAttackResult PerformAttackLOSCheck(const Vector Location, const AIWeaponType Weapon, const edict_t* Target);
 
 float WEAP_GetProjectileVelocityForWeapon(const AIWeaponType Weapon);

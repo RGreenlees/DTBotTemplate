@@ -1,7 +1,7 @@
 #ifndef AVH_AI_PLAYER_H
 #define AVH_AI_PLAYER_H
 
-#include "AvHAIConstants.h"
+#include "AIConstants.h"
 
 // These define the bot's view frustum sides
 #define FRUSTUM_PLANE_TOP 0
@@ -23,68 +23,68 @@ static const float f_ffheight = 2.0f * tan((BOT_FOV * 0.0174532925f) * 0.5f) * B
 static const float f_ffwidth = f_ffheight * BOT_ASPECT_RATIO;
 
 // Bot will jump. Will duck-jump if bDuckJump is set to true (true by default)
-void BotJump(AvHAIPlayer* pBot, bool bDuckJump = true);
+void BotJump(AIPlayer* pBot, bool bDuckJump = true);
 // Bot will suicide (equivalent of "kill" in the console)
-void BotSuicide(AvHAIPlayer* pBot);
+void BotSuicide(AIPlayer* pBot);
 // Tells the bot to look at the target location. Overridden by BotMoveLookAt if set
-void BotLookAt(AvHAIPlayer* pBot, Vector NewLocation);
+void BotLookAt(AIPlayer* pBot, Vector NewLocation);
 // Tells the bot to look at the centre of the target entity. Is overridden by BotMoveLookAt if set
-void BotLookAt(AvHAIPlayer* pBot, edict_t* target);
+void BotLookAt(AIPlayer* pBot, edict_t* target);
 // Informs the bot that it must look at this spot to complete its current move (e.g. look at top of ladder to climb). Overrides BotLookAt
-void BotMoveLookAt(AvHAIPlayer* pBot, const Vector target);
+void BotMoveLookAt(AIPlayer* pBot, const Vector target);
 // Instantly snaps the bot's view to the target position
-void BotDirectLookAt(AvHAIPlayer* pBot, Vector target);
+void BotDirectLookAt(AIPlayer* pBot, Vector target);
 
 // Bot will attempt to look at the object and use it. If bContinuous is set, the bot will hold the use key, otherwise they will spam every 0.5s as requested
-bool BotUseObject(AvHAIPlayer* pBot, edict_t* Target, bool bContinuous);
+bool BotUseObject(AIPlayer* pBot, edict_t* Target, bool bContinuous);
 
 // Make the bot type something in either global or team chat
-void BotSay(AvHAIPlayer* pBot, bool bTeamSay, float Delay, char* textToSay);
+void BotSay(AIPlayer* pBot, bool bTeamSay, float Delay, char* textToSay);
 
 // Helper function so the bot can find an empty message slot in its list of pending messages to print out
-bot_msg* GetAvailableBotMsgSlot(AvHAIPlayer* pBot);
+bot_msg* GetAvailableBotMsgSlot(AIPlayer* pBot);
 
 // Bot will attempt to drop the currently-held weapon
-void BotDropWeapon(AvHAIPlayer* pBot);
+void BotDropWeapon(AIPlayer* pBot);
 
-void BotShootTarget(AvHAIPlayer* pBot, AIWeaponType AttackWeapon, edict_t* Target);
-void BotShootLocation(AvHAIPlayer* pBot, AIWeaponType AttackWeapon, const Vector TargetLocation);
+void BotShootTarget(AIPlayer* pBot, AIWeaponType AttackWeapon, edict_t* Target);
+void BotShootLocation(AIPlayer* pBot, AIWeaponType AttackWeapon, const Vector TargetLocation);
 
-void BotUpdateDesiredViewRotation(AvHAIPlayer* pBot);
-void BotUpdateViewRotation(AvHAIPlayer* pBot, float DeltaTime);
-void BotUpdateView(AvHAIPlayer* pBot);
-bool IsEntityInBotFOV(AvHAIPlayer* Observer, const edict_t* Entity);
-bool IsEntityVisibleToBot(AvHAIPlayer* pBot, const edict_t* Entity);
-void UpdateAIPlayerViewFrustum(AvHAIPlayer* pBot);
+void BotUpdateDesiredViewRotation(AIPlayer* pBot);
+void BotUpdateViewRotation(AIPlayer* pBot, float DeltaTime);
+void BotUpdateView(AIPlayer* pBot);
+bool IsEntityInBotFOV(AIPlayer* Observer, const edict_t* Entity);
+bool IsEntityVisibleToBot(AIPlayer* pBot, const edict_t* Entity);
+void UpdateAIPlayerViewFrustum(AIPlayer* pBot);
 
 // Find a point on the target player that is visible from the view of the observer. Checks head, centre and feet for visibility
 Vector GetVisiblePointOnPlayerFromObserver(edict_t* Observer, edict_t* TargetPlayer);
 
-void UpdateBotChat(AvHAIPlayer* pBot);
+void UpdateBotChat(AIPlayer* pBot);
 
-void ClearBotInputs(AvHAIPlayer* pBot);
-void StartNewBotFrame(AvHAIPlayer* pBot);
-void EndBotFrame(AvHAIPlayer* pBot);
+void ClearBotInputs(AIPlayer* pBot);
+void StartNewBotFrame(AIPlayer* pBot);
+void EndBotFrame(AIPlayer* pBot);
 
-void OnBotTeleport(AvHAIPlayer* pBot);
+void OnBotTeleport(AIPlayer* pBot);
 
 // Sets up the bot's think routine
-void RunAIPlayerFrame(AvHAIPlayer* pBot);
+void RunAIPlayerFrame(AIPlayer* pBot);
 // The bot's actual think routine. All the logic to make the bot do something sits here
-void AIPlayerThink(AvHAIPlayer* pBot);
+void AIPlayerThink(AIPlayer* pBot);
 // The bot's think routine if they need to do something to join a team and start playing (e.g. pick a class)
-void AIPlayerStartGameThink(AvHAIPlayer* pBot);
+void AIPlayerStartGameThink(AIPlayer* pBot);
 
 // Called when the bot is killed by someone
-void AIPlayerKilled(AvHAIPlayer* pBot, edict_t* Killer);
+void AIPlayerKilled(AIPlayer* pBot, edict_t* Killer);
 
-void BotSwitchToWeapon(AvHAIPlayer* pBot, AIWeaponType NewWeaponSlot);
+void BotSwitchToWeapon(AIPlayer* pBot, AIWeaponType NewWeaponSlot);
 
-bool ShouldBotThink(AvHAIPlayer* pBot);
+bool ShouldBotThink(AIPlayer* pBot);
 
-void BotResumePlay(AvHAIPlayer* pBot);
+void BotResumePlay(AIPlayer* pBot);
 
-void AIPlayerTakeDamage(AvHAIPlayer* pBot, int damageTaken, edict_t* aggressor);
+void AIPlayerTakeDamage(AIPlayer* pBot, int damageTaken, edict_t* aggressor);
 
 // Simulates a fake client inputting a console command
 void FakeClientCommand(edict_t* pBot, const char* arg1, const char* arg2, const char* arg3);

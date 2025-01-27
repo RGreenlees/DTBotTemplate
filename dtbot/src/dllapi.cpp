@@ -38,10 +38,10 @@
 #include <dllapi.h>
 #include <meta_api.h>
 
-#include "AvHAIPlayerManager.h"
-#include "AvHAIHelper.h"
-#include "AvHAIWeaponHelper.h"
-#include "AvHAINavigation.h"
+#include "AIPlayerManager.h"
+#include "AIHelper.h"
+#include "AIWeaponHelper.h"
+#include "AINavigation.h"
 
 extern int m_spriteTexture;
 

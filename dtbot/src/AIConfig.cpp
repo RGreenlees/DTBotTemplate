@@ -1,7 +1,7 @@
 
-#include "AvHAIConfig.h"
-#include "AvHAIMath.h"
-#include "AvHAIHelper.h"
+#include "AIConfig.h"
+#include "AIMath.h"
+#include "AIHelper.h"
 
 #include <unordered_map>
 #include <algorithm>

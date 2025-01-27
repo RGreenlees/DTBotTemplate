@@ -43,7 +43,7 @@
 #include <meta_api.h>		// of course
 
 #include "sdk_util.h"		// UTIL_LogPrintf, etc
-#include "AvHAIPlayerManager.h"
+#include "AIPlayerManager.h"
 
 // Must provide at least one of these..
 static META_FUNCTIONS gMetaFunctionTable = {

@@ -11,8 +11,8 @@
 #ifndef AVH_AI_TACTICAL_H
 #define AVH_AI_TACTICAL_H
 
-#include "AvHAIPlayer.h"
-#include "AvHAIConstants.h"
+#include "AIPlayer.h"
+#include "AIConstants.h"
 
 #include <string>
 

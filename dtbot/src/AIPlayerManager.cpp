@@ -1,19 +1,19 @@
-#include "AvHAIPlayerManager.h"
-#include "AvHAIPlayer.h"
-#include "AvHAIMath.h"
-#include "AvHAITactical.h"
-#include "AvHAINavigation.h"
-#include "AvHAIConfig.h"
-#include "AvHAIWeaponHelper.h"
-#include "AvHAIHelper.h"
-#include "AvHAIPlayerUtil.h"
+#include "AIPlayerManager.h"
+#include "AIPlayer.h"
+#include "AIMath.h"
+#include "AITactical.h"
+#include "AINavigation.h"
+#include "AIConfig.h"
+#include "AIWeaponHelper.h"
+#include "AIHelper.h"
+#include "AIPlayerUtil.h"
 #include <time.h>
 
 #include <string>
 
 double last_think_time = 0.0;
 
-std::vector<AvHAIPlayer> ActiveAIPlayers;
+std::vector<AIPlayer> ActiveAIPlayers;
 
 float LastAIPlayerCountUpdate = 0.0f;
 
@@ -34,7 +34,7 @@ Vector DebugVector2 = ZERO_VECTOR;
 int DisplayConnectionsMesh = -1;
 int DisplayTempObstaclesMesh = -1;
 
-AvHAIPlayer* DebugAIPlayer = nullptr;
+AIPlayer* DebugAIPlayer = nullptr;
 
 std::vector<bot_path_node> DebugPath;
 
@@ -132,7 +132,7 @@ void AIMGR_RemoveAIPlayerFromTeam(int Team)
 	// resources tied up in them or are commanding, which could cause big disruption to the team they're leaving
 
 	int MinValue = 0; // Track the least valuable bot on the desired team.
-	std::vector<AvHAIPlayer>::iterator ItemToRemove = ActiveAIPlayers.end(); // Current bot to be kicked
+	std::vector<AIPlayer>::iterator ItemToRemove = ActiveAIPlayers.end(); // Current bot to be kicked
 
 	for (auto it = ActiveAIPlayers.begin(); it != ActiveAIPlayers.end(); it++)
 	{
@@ -225,7 +225,7 @@ void AIMGR_AddAIPlayerToTeam(int Team)
 	BotEnt->v.pitch_speed = 270;  // slightly faster than HLDM of 225
 	BotEnt->v.yaw_speed = 250; // slightly faster than HLDM of 210
 
-	AvHAIPlayer NewAIPlayer;
+	AIPlayer NewAIPlayer;
 	NewAIPlayer.Edict = BotEnt;
 
 	if (ActiveAIPlayers.size() == 0)
@@ -239,12 +239,12 @@ void AIMGR_AddAIPlayerToTeam(int Team)
 
 }
 
-bool AIMGR_HasBotStartedGame(AvHAIPlayer* pBot)
+bool AIMGR_HasBotStartedGame(AIPlayer* pBot)
 {
 	return true;
 }
 
-byte BotThrottledMsec(AvHAIPlayer* inAIPlayer, float CurrentTime)
+byte BotThrottledMsec(AIPlayer* inAIPlayer, float CurrentTime)
 {
 	// Thanks to The Storm (ePODBot) for this one, finally fixed the bot running speed!
 	int newmsec = (int)roundf((CurrentTime - inAIPlayer->LastServerUpdateTime) * 1000.0f);
@@ -361,7 +361,7 @@ void AIMGR_UpdateAIPlayers()
 			continue;
 		}
 
-		AvHAIPlayer* bot = &(*BotIt);
+		AIPlayer* bot = &(*BotIt);
 
 		BotUpdateViewRotation(bot, FrameDelta);
 
@@ -581,7 +581,7 @@ bool AIMGR_IsBotEnabled()
 	return NAV_GetNavMeshStatus() != NAVMESH_STATUS_FAILED;
 }
 
-AvHAINavMeshStatus AIMGR_GetNavMeshStatus()
+AINavMeshStatus AIMGR_GetNavMeshStatus()
 {
 	return NAV_GetNavMeshStatus();
 }
@@ -607,7 +607,7 @@ void AIMGR_LoadNavigationData()
 	}
 }
 
-AvHAIPlayer* AIMGR_GetBotRefFromPlayer(edict_t* PlayerRef)
+AIPlayer* AIMGR_GetBotRefFromPlayer(edict_t* PlayerRef)
 {
 	for (auto BotIt = ActiveAIPlayers.begin(); BotIt != ActiveAIPlayers.end(); BotIt++)
 	{
@@ -617,16 +617,16 @@ AvHAIPlayer* AIMGR_GetBotRefFromPlayer(edict_t* PlayerRef)
 	return nullptr;
 }
 
-AvHAIPlayer* AIMGR_GetBotAtIndex(int Index)
+AIPlayer* AIMGR_GetBotAtIndex(int Index)
 {
 	if (Index < 0 || Index >= ActiveAIPlayers.size()) { return nullptr; }
 
 	return &ActiveAIPlayers[Index];
 }
 
-std::vector<AvHAIPlayer*> AIMGR_GetAllAIPlayers()
+std::vector<AIPlayer*> AIMGR_GetAllAIPlayers()
 {
-	std::vector<AvHAIPlayer*> Result;
+	std::vector<AIPlayer*> Result;
 
 	Result.clear();
 
@@ -657,9 +657,9 @@ std::vector<edict_t*> AIMGR_GetAllActivePlayers()
 	return Result;
 }
 
-std::vector<AvHAIPlayer*> AIMGR_GetAIPlayersOnTeam(int Team)
+std::vector<AIPlayer*> AIMGR_GetAIPlayersOnTeam(int Team)
 {
-	std::vector<AvHAIPlayer*> Result;
+	std::vector<AIPlayer*> Result;
 
 	Result.clear();
 
@@ -724,7 +724,7 @@ void AIMGR_BotPrecache()
 	m_spriteTexture = PRECACHE_MODEL("sprites/zbeam6.spr");
 }
 
-AvHAIPlayer* AIMGR_GetDebugAIPlayer()
+AIPlayer* AIMGR_GetDebugAIPlayer()
 {
 	return DebugAIPlayer;
 }
@@ -768,7 +768,7 @@ void AIMGR_KickBot(edict_t* BotToKick)
 	SERVER_COMMAND(cmd);  // kick the bot using (kick "name")
 }
 
-AvHAIPlayer* AIMGR_GetBotPointer(const edict_t* pEdict)
+AIPlayer* AIMGR_GetBotPointer(const edict_t* pEdict)
 {
 	for (auto it = ActiveAIPlayers.begin(); it != ActiveAIPlayers.end(); it++)
 	{
@@ -835,7 +835,7 @@ void DTBot_ServerCommand(void)
 		
 		if (FStrEq(arg2, "cometome"))
 		{
-			std::vector<AvHAIPlayer*> AllBots = AIMGR_GetAllAIPlayers();
+			std::vector<AIPlayer*> AllBots = AIMGR_GetAllAIPlayers();
 
 			for (auto it = AllBots.begin(); it != AllBots.end(); it++)
 			{
@@ -854,7 +854,7 @@ void DTBot_ServerCommand(void)
 
 		if (FStrEq(arg2, "allstop"))
 		{
-			std::vector<AvHAIPlayer*> AllBots = AIMGR_GetAllAIPlayers();
+			std::vector<AIPlayer*> AllBots = AIMGR_GetAllAIPlayers();
 
 			for (auto it = AllBots.begin(); it != AllBots.end(); it++)
 			{
@@ -868,7 +868,7 @@ void DTBot_ServerCommand(void)
 		{
 			if (vIsZero(DebugVector1)) { return; }
 
-			std::vector<AvHAIPlayer*> AllBots = AIMGR_GetAllAIPlayers();
+			std::vector<AIPlayer*> AllBots = AIMGR_GetAllAIPlayers();
 
 			for (auto it = AllBots.begin(); it != AllBots.end(); it++)
 			{
@@ -882,7 +882,7 @@ void DTBot_ServerCommand(void)
 		{
 			if (vIsZero(DebugVector2)) { return; }
 
-			std::vector<AvHAIPlayer*> AllBots = AIMGR_GetAllAIPlayers();
+			std::vector<AIPlayer*> AllBots = AIMGR_GetAllAIPlayers();
 
 			for (auto it = AllBots.begin(); it != AllBots.end(); it++)
 			{

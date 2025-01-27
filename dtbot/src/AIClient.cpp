@@ -1,7 +1,7 @@
 //
 // DTBot - Neoptolemus' Recast/Detour base GoldSrc bot, based on Botman's HPB bot template
 //
-// bot_client.cpp
+// AIClient.cpp
 // 
 // Contains all network message handling by the bot
 //
@@ -10,17 +10,17 @@
 #include <string.h>
 #endif
 
-#include "bot_client.h"
+#include "AIClient.h"
 
 #include <extdll.h>
 #include <dllapi.h>
 #include <h_export.h>
 #include <meta_api.h>
 
-#include "AvHAIPlayerManager.h"
-#include "AvHAIWeaponHelper.h"
-#include "AvHAIPlayerUtil.h"
-#include "AvHAITactical.h"
+#include "AIPlayerManager.h"
+#include "AIWeaponHelper.h"
+#include "AIPlayerUtil.h"
+#include "AITactical.h"
 
 // instant damage (from cbase.h)
 #define DMG_CRUSH			(1 << 0)	// crushed by falling or moving object
@@ -278,7 +278,7 @@ void BotClient_Valve_Damage(void* p, int bot_index)
 
 			if (!FNullEnt(aggressor))
 			{
-				AvHAIPlayer* DamagedBot = AIMGR_GetBotAtIndex(bot_index);
+				AIPlayer* DamagedBot = AIMGR_GetBotAtIndex(bot_index);
 				AIPlayerTakeDamage(DamagedBot, DamageInfo.damage_taken, aggressor);
 			}
 		}
@@ -318,7 +318,7 @@ void BotClient_Valve_DeathMsg(void* p, int bot_index)
 		// is this message about a bot being killed?
 		if (DeathInfo.index != -1 && !FNullEnt(DeathInfo.killer_edict))
 		{
-			AvHAIPlayer* DamagedBot = AIMGR_GetBotPointer(DeathInfo.victim_edict);
+			AIPlayer* DamagedBot = AIMGR_GetBotPointer(DeathInfo.victim_edict);
 			AIPlayerKilled(DamagedBot, DeathInfo.killer_edict);
 		}
 	}

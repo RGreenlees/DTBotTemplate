@@ -1,14 +1,14 @@
 
-#include "AvHAIPlayer.h"
-#include "AvHAIPlayerUtil.h"
-#include "AvHAIHelper.h"
-#include "AvHAIMath.h"
-#include "AvHAIHelper.h"
-#include "AvHAINavigation.h"
-#include "AvHAIWeaponHelper.h"
-#include "AvHAITactical.h"
-#include "AvHAIPlayerManager.h"
-#include "AvHAIConfig.h"
+#include "AIPlayer.h"
+#include "AIPlayerUtil.h"
+#include "AIHelper.h"
+#include "AIMath.h"
+#include "AIHelper.h"
+#include "AINavigation.h"
+#include "AIWeaponHelper.h"
+#include "AITactical.h"
+#include "AIPlayerManager.h"
+#include "AIConfig.h"
 
 extern nav_mesh NavMeshes[NUM_NAV_MESHES]; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
 
@@ -16,7 +16,7 @@ int fake_arg_count;
 extern char g_argv[1024];
 bool isFakeClientCommand;
 
-void BotJump(AvHAIPlayer* pBot, bool bDuckJump)
+void BotJump(AIPlayer* pBot, bool bDuckJump)
 {
 	if (pBot->BotNavInfo.IsOnGround)
 	{
@@ -36,7 +36,7 @@ void BotJump(AvHAIPlayer* pBot, bool bDuckJump)
 	}
 }
 
-void BotSuicide(AvHAIPlayer* pBot)
+void BotSuicide(AIPlayer* pBot)
 {
 	if (pBot && !IsPlayerDead(pBot->Edict) && !pBot->bIsPendingKill)
 	{
@@ -46,21 +46,21 @@ void BotSuicide(AvHAIPlayer* pBot)
 }
 
 /* Makes the bot look at the specified position */
-void BotLookAt(AvHAIPlayer* pBot, const Vector target)
+void BotLookAt(AIPlayer* pBot, const Vector target)
 {
 	pBot->LookTargetLocation.x = target.x;
 	pBot->LookTargetLocation.y = target.y;
 	pBot->LookTargetLocation.z = target.z;
 }
 
-void BotMoveLookAt(AvHAIPlayer* pBot, const Vector target)
+void BotMoveLookAt(AIPlayer* pBot, const Vector target)
 {
 	pBot->MoveLookLocation.x = target.x;
 	pBot->MoveLookLocation.y = target.y;
 	pBot->MoveLookLocation.z = target.z;
 }
 
-void BotDirectLookAt(AvHAIPlayer* pBot, Vector target)
+void BotDirectLookAt(AIPlayer* pBot, Vector target)
 {
 	pBot->DesiredLookDirection = ZERO_VECTOR;
 	pBot->InterpolatedLookDirection = ZERO_VECTOR;
@@ -98,7 +98,7 @@ void BotDirectLookAt(AvHAIPlayer* pBot, Vector target)
 		pEdict->v.ideal_yaw += 360;
 }
 
-void BotLookAt(AvHAIPlayer* pBot, edict_t* target)
+void BotLookAt(AIPlayer* pBot, edict_t* target)
 {
 	if (FNullEnt(target)) { return; }
 
@@ -135,7 +135,7 @@ void BotLookAt(AvHAIPlayer* pBot, edict_t* target)
 	pBot->LookTargetLocation = NewAimLoc;
 }
 
-bool BotUseObject(AvHAIPlayer* pBot, edict_t* Target, bool bContinuous)
+bool BotUseObject(AIPlayer* pBot, edict_t* Target, bool bContinuous)
 {
 	if (FNullEnt(Target)) { return false; }
 
@@ -164,7 +164,7 @@ bool BotUseObject(AvHAIPlayer* pBot, edict_t* Target, bool bContinuous)
 	return false;
 }
 
-bot_msg* GetAvailableBotMsgSlot(AvHAIPlayer* pBot)
+bot_msg* GetAvailableBotMsgSlot(AIPlayer* pBot)
 {
 	for (int i = 0; i < 5; i++)
 	{
@@ -174,7 +174,7 @@ bot_msg* GetAvailableBotMsgSlot(AvHAIPlayer* pBot)
 	return nullptr;
 }
 
-void BotSay(AvHAIPlayer* pBot, bool bTeamSay, float Delay, char* textToSay)
+void BotSay(AIPlayer* pBot, bool bTeamSay, float Delay, char* textToSay)
 {
 	bot_msg* msgSlot = GetAvailableBotMsgSlot(pBot);
 
@@ -187,7 +187,7 @@ void BotSay(AvHAIPlayer* pBot, bool bTeamSay, float Delay, char* textToSay)
 	}
 }
 
-void BotDropWeapon(AvHAIPlayer* pBot)
+void BotDropWeapon(AIPlayer* pBot)
 {
 	// Look straight ahead so we don't accidentally drop the weapon right at our feet and pick it up again instantly
 
@@ -206,7 +206,7 @@ void BotDropWeapon(AvHAIPlayer* pBot)
 	}
 }
 
-void BotShootTarget(AvHAIPlayer* pBot, AIWeaponType AttackWeapon, edict_t* Target)
+void BotShootTarget(AIPlayer* pBot, AIWeaponType AttackWeapon, edict_t* Target)
 {
 	if (FNullEnt(Target) || (Target->v.deadflag != DEAD_NO)) { return; }
 
@@ -295,7 +295,7 @@ void BotShootTarget(AvHAIPlayer* pBot, AIWeaponType AttackWeapon, edict_t* Targe
 	}
 }
 
-void BotShootLocation(AvHAIPlayer* pBot, AIWeaponType AttackWeapon, const Vector TargetLocation)
+void BotShootLocation(AIPlayer* pBot, AIWeaponType AttackWeapon, const Vector TargetLocation)
 {
 	if (vIsZero(TargetLocation)) { return; }
 
@@ -370,7 +370,7 @@ void BotShootLocation(AvHAIPlayer* pBot, AIWeaponType AttackWeapon, const Vector
 	}
 }
 
-void BotUpdateDesiredViewRotation(AvHAIPlayer* pBot)
+void BotUpdateDesiredViewRotation(AIPlayer* pBot)
 {
 	// We always prioritise MoveLookLocation if it is set so the bot doesn't screw up wall climbing or ladder movement
 	Vector NewLookLocation = (!vIsZero(pBot->MoveLookLocation)) ? pBot->MoveLookLocation : pBot->LookTargetLocation;
@@ -512,7 +512,7 @@ void BotUpdateDesiredViewRotation(AvHAIPlayer* pBot)
 	pBot->ViewInterpStartedTime = gpGlobals->time;
 }
 
-void BotUpdateViewRotation(AvHAIPlayer* pBot, float DeltaTime)
+void BotUpdateViewRotation(AIPlayer* pBot, float DeltaTime)
 {
 	if (!vIsZero(pBot->DesiredLookDirection))
 	{
@@ -577,7 +577,7 @@ void BotUpdateViewRotation(AvHAIPlayer* pBot, float DeltaTime)
 	}
 }
 
-void BotUpdateView(AvHAIPlayer* pBot)
+void BotUpdateView(AIPlayer* pBot)
 {
 	pBot->ViewForwardVector = UTIL_GetForwardVector(pBot->Edict->v.v_angle);
 	UpdateAIPlayerViewFrustum(pBot);
@@ -586,7 +586,7 @@ void BotUpdateView(AvHAIPlayer* pBot)
 	
 }
 
-bool IsEntityVisibleToBot(AvHAIPlayer* pBot, const edict_t* Entity)
+bool IsEntityVisibleToBot(AIPlayer* pBot, const edict_t* Entity)
 {
 	if (!IsEntityInBotFOV(pBot, Entity)) { return false; }
 
@@ -632,7 +632,7 @@ bool IsEntityVisibleToBot(AvHAIPlayer* pBot, const edict_t* Entity)
 	return false;
 }
 
-void UpdateAIPlayerViewFrustum(AvHAIPlayer* pBot)
+void UpdateAIPlayerViewFrustum(AIPlayer* pBot)
 {
 	MAKE_VECTORS(pBot->Edict->v.v_angle);
 	Vector up = gpGlobals->v_up;
@@ -661,7 +661,7 @@ void UpdateAIPlayerViewFrustum(AvHAIPlayer* pBot)
 	UTIL_SetFrustumPlane(&pBot->viewFrustum[FRUSTUM_PLANE_FAR], fbl, ftl, ftr);
 }
 
-bool IsEntityInBotFOV(AvHAIPlayer* Observer, const edict_t* Entity)
+bool IsEntityInBotFOV(AIPlayer* Observer, const edict_t* Entity)
 {
 	// Obviously can't see the object if it's a null entity, or is set not to be drawn
 	if (FNullEnt(Entity) || (Entity->v.effects & EF_NODRAW)) { return false; }
@@ -702,7 +702,7 @@ Vector GetVisiblePointOnPlayerFromObserver(edict_t* Observer, edict_t* TargetPla
 	return ZERO_VECTOR;
 }
 
-void UpdateBotChat(AvHAIPlayer* pBot)
+void UpdateBotChat(AIPlayer* pBot)
 {
 	for (int i = 0; i < 5; i++)
 	{
@@ -722,7 +722,7 @@ void UpdateBotChat(AvHAIPlayer* pBot)
 	}
 }
 
-void ClearBotInputs(AvHAIPlayer* pBot)
+void ClearBotInputs(AIPlayer* pBot)
 {
 	pBot->Button = 0;
 	pBot->ForwardMove = 0.0f;
@@ -732,7 +732,7 @@ void ClearBotInputs(AvHAIPlayer* pBot)
 	pBot->Button = 0;
 }
 
-void StartNewBotFrame(AvHAIPlayer* pBot)
+void StartNewBotFrame(AIPlayer* pBot)
 {
 	edict_t* pEdict = pBot->Edict;
 
@@ -847,7 +847,7 @@ void StartNewBotFrame(AvHAIPlayer* pBot)
 	pBot->BotNavInfo.bShouldWalk = false;
 }
 
-void EndBotFrame(AvHAIPlayer* pBot)
+void EndBotFrame(AIPlayer* pBot)
 {
 	UpdateBotStuck(pBot);
 
@@ -859,7 +859,7 @@ void EndBotFrame(AvHAIPlayer* pBot)
 	}
 }
 
-void OnBotTeleport(AvHAIPlayer* pBot)
+void OnBotTeleport(AIPlayer* pBot)
 {
 	ClearBotStuck(pBot);
 	ClearBotStuckMovement(pBot);
@@ -867,17 +867,17 @@ void OnBotTeleport(AvHAIPlayer* pBot)
 	pBot->LastTeleportTime = gpGlobals->time;
 }
 
-void AIPlayerKilled(AvHAIPlayer* pBot, edict_t* Killer)
+void AIPlayerKilled(AIPlayer* pBot, edict_t* Killer)
 {
 	// Logic here for the bot to react being killed by someone
 }
 
-void AIPlayerTakeDamage(AvHAIPlayer* pBot, int damageTaken, edict_t* aggressor)
+void AIPlayerTakeDamage(AIPlayer* pBot, int damageTaken, edict_t* aggressor)
 {
 	// Logic here for the bot to react being damaged by someone (friendly or enemy)
 }
 
-void RunAIPlayerFrame(AvHAIPlayer* pBot)
+void RunAIPlayerFrame(AIPlayer* pBot)
 {
 	pBot->ThinkDelta = fminf(gpGlobals->time - pBot->LastThinkTime, 0.1f);
 	pBot->LastThinkTime = gpGlobals->time;
@@ -914,12 +914,12 @@ void RunAIPlayerFrame(AvHAIPlayer* pBot)
 	EndBotFrame(pBot);
 }
 
-void AIPlayerStartGameThink(AvHAIPlayer* pBot)
+void AIPlayerStartGameThink(AIPlayer* pBot)
 {
 	// Any code here to make the bot join the game and start playing
 }
 
-void AIPlayerThink(AvHAIPlayer* pBot)
+void AIPlayerThink(AIPlayer* pBot)
 {
 	// Entry point for all the bot's decision making and actions
 
@@ -937,19 +937,19 @@ void AIPlayerThink(AvHAIPlayer* pBot)
 	}
 }
 
-void BotSwitchToWeapon(AvHAIPlayer* pBot, AIWeaponType NewWeaponSlot)
+void BotSwitchToWeapon(AIPlayer* pBot, AIWeaponType NewWeaponSlot)
 {
 	const char* WeaponName = UTIL_WeaponTypeToClassname(NewWeaponSlot);
 
 	FakeClientCommand(pBot->Edict, WeaponName, NULL, NULL);
 }
 
-bool ShouldBotThink(AvHAIPlayer* pBot)
+bool ShouldBotThink(AIPlayer* pBot)
 {
 	return NavmeshLoaded() && IsPlayerActiveInGame(pBot->Edict);
 }
 
-void BotResumePlay(AvHAIPlayer* pBot)
+void BotResumePlay(AIPlayer* pBot)
 {
 	ClearBotMovement(pBot);
 	SetBaseNavProfile(pBot);

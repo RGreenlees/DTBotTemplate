@@ -6,7 +6,7 @@
 // Contains all useful math functions for bot stuff
 //
 
-#include "AvHAIMath.h"
+#include "AIMath.h"
 
 #include <dllapi.h>
 #include <h_export.h>

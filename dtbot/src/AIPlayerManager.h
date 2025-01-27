@@ -1,8 +1,8 @@
 #ifndef AVH_AI_PLAYER_MANAGER_H
 #define AVH_AI_PLAYER_MANAGER_H
 
-#include "AvHAIConstants.h"
-#include "AvHAIPlayer.h"
+#include "AIConstants.h"
+#include "AIPlayer.h"
 
 // The rate at which the bot will call RunPlayerMove in, default is 100hz. WARNING: Increasing the rate past 100hz causes bots to move and turn slowly due to GoldSrc limits!
 static const double BOT_SERVER_UPDATE_RATE = (1.0 / 100.0);
@@ -36,7 +36,7 @@ void	AIMGR_UpdateAIPlayers();
 bool AIMGR_HasMatchEnded();
 
 // Has the bot actually started playing, or are they in a lobby, or do they need to pick a team or class before they can play?
-bool AIMGR_HasBotStartedGame(AvHAIPlayer* pBot);
+bool AIMGR_HasBotStartedGame(AIPlayer* pBot);
 
 // Called every 0.2s to determine if bots need to be added/removed. Calls UpdateTeamBalance or UpdateFillTeams depending on auto-mode
 void	AIMGR_UpdateAIPlayerCounts();
@@ -60,21 +60,21 @@ int AIMGR_GetNumAIPlayersOnTeam(int Team);
 int AIMGR_GetNumHumanPlayersOnTeam(int Team);
 
 bool AIMGR_IsNavmeshLoaded();
-AvHAINavMeshStatus AIMGR_GetNavMeshStatus();
+AINavMeshStatus AIMGR_GetNavMeshStatus();
 
 bool AIMGR_IsBotEnabled();
 
 void AIMGR_LoadNavigationData();
 void AIMGR_ReloadNavigationData();
 
-AvHAIPlayer* AIMGR_GetBotRefFromPlayer(edict_t* PlayerRef);
-AvHAIPlayer* AIMGR_GetBotAtIndex(int Index);
+AIPlayer* AIMGR_GetBotRefFromPlayer(edict_t* PlayerRef);
+AIPlayer* AIMGR_GetBotAtIndex(int Index);
 
 
 // Returns all NS AI players. Does not include third-party bots
-std::vector<AvHAIPlayer*> AIMGR_GetAllAIPlayers();
+std::vector<AIPlayer*> AIMGR_GetAllAIPlayers();
 // Returns all NS AI players on the requested team. Does not include third-party bots
-std::vector<AvHAIPlayer*> AIMGR_GetAIPlayersOnTeam(int Team);
+std::vector<AIPlayer*> AIMGR_GetAIPlayersOnTeam(int Team);
 // Returns all active players (i.e. not dead, commanding, spectating or in the ready room)
 std::vector<edict_t*> AIMGR_GetAllActivePlayers();
 
@@ -83,7 +83,7 @@ std::vector<edict_t*> AIMGR_GetNonAIPlayersOnTeam(int Team);
 
 void AIMGR_ClearBotData();
 
-AvHAIPlayer* AIMGR_GetDebugAIPlayer();
+AIPlayer* AIMGR_GetDebugAIPlayer();
 void AIMGR_SetDebugAIPlayer(edict_t* AIPlayer);
 
 void AIMGR_ClientConnected(edict_t* NewClient);
@@ -91,7 +91,7 @@ void AIMGR_PlayerSpawned();
 
 void AIMGR_KickBot(edict_t* BotToKick);
 
-AvHAIPlayer* AIMGR_GetBotPointer(const edict_t* pEdict);
+AIPlayer* AIMGR_GetBotPointer(const edict_t* pEdict);
 int AIMGR_GetBotIndex(const edict_t* pEdict);
 
 void DTBot_ServerCommand(void);

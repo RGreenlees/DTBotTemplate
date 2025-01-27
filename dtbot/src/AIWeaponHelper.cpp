@@ -1,16 +1,16 @@
 
-#include "AvHAIWeaponHelper.h"
-#include "AvHAIPlayerUtil.h"
-#include "AvHAIMath.h"
-#include "AvHAINavigation.h"
-#include "AvHAIHelper.h"
-#include "AvHAITactical.h"
-#include "AvHAIPlayerManager.h"
+#include "AIWeaponHelper.h"
+#include "AIPlayerUtil.h"
+#include "AIMath.h"
+#include "AINavigation.h"
+#include "AIHelper.h"
+#include "AITactical.h"
+#include "AIPlayerManager.h"
 
 extern nav_mesh NavMeshes[NUM_NAV_MESHES]; // Array of nav meshes. Currently only 3 are used (building, onos, and regular)
 
 AIWeaponTypeDefinition WeaponList[32];
-AvHAIPlayerInventory PlayerInventories[32];
+AIPlayerInventory PlayerInventories[32];
 
 int WEAP_GetPlayerCurrentWeaponClipAmmo(const edict_t* Player)
 {
@@ -18,7 +18,7 @@ int WEAP_GetPlayerCurrentWeaponClipAmmo(const edict_t* Player)
 
 	if (PlayerIndex < 0 || PlayerIndex >= 32) { return WEAPON_INVALID; }
 
-	AvHAIPlayerInventory PlayerInventory = PlayerInventories[PlayerIndex];
+	AIPlayerInventory PlayerInventory = PlayerInventories[PlayerIndex];
 
 	if (PlayerInventory.CurrentWeapon == WEAPON_INVALID) { return 0; }
 
@@ -32,7 +32,7 @@ int WEAP_GetPlayerCurrentWeaponMaxClipAmmo(const edict_t* Player)
 
 	if (PlayerIndex < 0 || PlayerIndex >= 32) { return WEAPON_INVALID; }
 
-	AvHAIPlayerInventory PlayerInventory = PlayerInventories[PlayerIndex];
+	AIPlayerInventory PlayerInventory = PlayerInventories[PlayerIndex];
 
 	if (PlayerInventory.CurrentWeapon == WEAPON_INVALID) { return 0; }
 
@@ -45,7 +45,7 @@ int WEAP_GetPlayerCurrentWeaponReserveAmmo(const edict_t* Player)
 
 	if (PlayerIndex < 0 || PlayerIndex >= 32) { return WEAPON_INVALID; }
 
-	AvHAIPlayerInventory PlayerInventory = PlayerInventories[PlayerIndex];
+	AIPlayerInventory PlayerInventory = PlayerInventories[PlayerIndex];
 
 	if (PlayerInventory.CurrentWeapon == WEAPON_INVALID) { return 0; }
 
@@ -60,7 +60,7 @@ int WEAP_GetPlayerCurrentWeaponMaxReserveAmmo(const edict_t* Player)
 
 	if (PlayerIndex < 0 || PlayerIndex >= 32) { return WEAPON_INVALID; }
 
-	AvHAIPlayerInventory PlayerInventory = PlayerInventories[PlayerIndex];
+	AIPlayerInventory PlayerInventory = PlayerInventories[PlayerIndex];
 
 	if (PlayerInventory.CurrentWeapon == WEAPON_INVALID) { return 0; }
 
@@ -98,7 +98,7 @@ float WEAP_GetReloadTimeForWeapon(AIWeaponType Weapon)
 	return 2.0f;
 }
 
-void InterruptReload(AvHAIPlayer* pBot)
+void InterruptReload(AIPlayer* pBot)
 {
 	if (!IsPlayerReloading(pBot->Edict)) { return; }
 
@@ -133,7 +133,7 @@ float WEAP_GetTimeUntilPlayerNextRefire(const edict_t* Player)
 
 	if (PlayerIndex < 0 || PlayerIndex >= 32) { return WEAPON_INVALID; }
 
-	AvHAIPlayerInventory PlayerInventory = PlayerInventories[PlayerIndex];
+	AIPlayerInventory PlayerInventory = PlayerInventories[PlayerIndex];
 
 	if (PlayerInventory.CurrentWeapon == WEAPON_INVALID) { return 0.0f; }
 
@@ -238,7 +238,7 @@ Vector UTIL_GetGrenadeThrowTarget(edict_t* Player, const Vector TargetLocation, 
 	}
 }
 
-void WEAP_BotReloadCurrentWeapon(AvHAIPlayer* pBot)
+void WEAP_BotReloadCurrentWeapon(AIPlayer* pBot)
 {
 	AIWeaponType CurrentWeapon = WEAP_GetPlayerCurrentWeapon(pBot->Edict);
 
@@ -254,7 +254,7 @@ void WEAP_BotReloadCurrentWeapon(AvHAIPlayer* pBot)
 	}
 }
 
-BotAttackResult PerformAttackLOSCheck(AvHAIPlayer* pBot, const AIWeaponType Weapon, const edict_t* Target)
+BotAttackResult PerformAttackLOSCheck(AIPlayer* pBot, const AIWeaponType Weapon, const edict_t* Target)
 {
 	if (FNullEnt(Target) || (Target->v.deadflag != DEAD_NO)) { return ATTACK_INVALIDTARGET; }
 
@@ -290,7 +290,7 @@ BotAttackResult PerformAttackLOSCheck(AvHAIPlayer* pBot, const AIWeaponType Weap
 	return ATTACK_SUCCESS;
 }
 
-BotAttackResult PerformAttackLOSCheck(AvHAIPlayer* pBot, const AIWeaponType Weapon, const Vector TargetLocation, const edict_t* Target)
+BotAttackResult PerformAttackLOSCheck(AIPlayer* pBot, const AIWeaponType Weapon, const Vector TargetLocation, const edict_t* Target)
 {
 	if (!TargetLocation) { return ATTACK_INVALIDTARGET; }
 
@@ -392,7 +392,7 @@ void UTIL_UpdatePlayerAmmo(int player_index, int AmmoIndex, int NewAmmo)
 
 	if (ZeroIndex < 0 || ZeroIndex >= 32 || AmmoIndex >= MAX_AMMO_SLOTS) { return; }
 
-	AvHAIPlayerInventory* Inventory = &PlayerInventories[ZeroIndex];
+	AIPlayerInventory* Inventory = &PlayerInventories[ZeroIndex];
 
 	Inventory->AmmoCounts[AmmoIndex] = NewAmmo;
 
@@ -406,7 +406,7 @@ void UTIL_RegisterPlayerCurrentWeapon(int player_index, int WeaponIndex, int Cli
 
 	if (ZeroIndex < 0 || ZeroIndex >= 32) { return; }
 
-	AvHAIPlayerInventory* Inventory = &PlayerInventories[ZeroIndex];
+	AIPlayerInventory* Inventory = &PlayerInventories[ZeroIndex];
 
 	Inventory->ClipAmount[WeaponIndex] = ClipAmmo;
 
@@ -423,7 +423,7 @@ AIWeaponType WEAP_GetPlayerCurrentWeapon(const edict_t* Player)
 
 	if (ZeroIndex < 0 || ZeroIndex >= 32) { return WEAPON_INVALID; }
 
-	AvHAIPlayerInventory* Inventory = &PlayerInventories[ZeroIndex];
+	AIPlayerInventory* Inventory = &PlayerInventories[ZeroIndex];
 
 	return Inventory->CurrentWeapon;
 }
@@ -434,7 +434,7 @@ void WEAP_PlayerFiredWeapon(const edict_t* Player)
 
 	if (PlayerIndex < 0 || PlayerIndex >= 32) { return; }
 
-	AvHAIPlayerInventory* Inventory = &PlayerInventories[PlayerIndex];
+	AIPlayerInventory* Inventory = &PlayerInventories[PlayerIndex];
 
 	if (Inventory->CurrentWeapon == WEAPON_INVALID) { return; }
 

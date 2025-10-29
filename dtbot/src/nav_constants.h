@@ -45,7 +45,7 @@ enum NavArea
 enum NavProfileIndex
 {
 	NAV_PROFILE_PLAYER = 0,		// Base Player
-	NAV_PROFILE_DEFAULT = 1,		// Default profile which has all capabilities except disabled flags, and 1.0 area costs for everything 
+	NAV_PROFILE_DEFAULT = 1,		// Default profile which has all capabilities except disabled flags, and 1.0 area costs for everything
 };
 
 // Profile indices. Use these when retrieving base agent profile information
@@ -300,24 +300,24 @@ inline void PopulateBaseAgentProfiles()
 	NewProfile.NavMeshIndex = 0;
 	NewProfile.Filters.setIncludeFlags(127);
 	NewProfile.Filters.setExcludeFlags(NAV_FLAG_DISABLED);
-	NewProfile.Filters.setAreaCost(0, 0.0);
-	NewProfile.Filters.setAreaCost(1, 1.0);
-	NewProfile.Filters.setAreaCost(2, 2.0);
-	NewProfile.Filters.setAreaCost(3, 2.0);
-	NewProfile.Filters.setAreaCost(4, 10.0);
-	NewProfile.Filters.setAreaCost(5, 0.1);
+	NewProfile.Filters.setAreaCost(0, 0.0f);
+	NewProfile.Filters.setAreaCost(1, 1.0f);
+	NewProfile.Filters.setAreaCost(2, 2.0f);
+	NewProfile.Filters.setAreaCost(3, 2.0f);
+	NewProfile.Filters.setAreaCost(4, 10.0f);
+	NewProfile.Filters.setAreaCost(5, 0.1f);
 	BaseAgentProfiles.push_back(NewProfile);
 
 	NavAgentProfile DefaultProfile;
 	DefaultProfile.NavMeshIndex = 0;
 	DefaultProfile.Filters.setIncludeFlags(0x7fffffff);
 	DefaultProfile.Filters.setExcludeFlags(NAV_FLAG_DISABLED);
-	DefaultProfile.Filters.setAreaCost(0, 1.0);
-	DefaultProfile.Filters.setAreaCost(1, 1.0);
-	DefaultProfile.Filters.setAreaCost(2, 1.0);
-	DefaultProfile.Filters.setAreaCost(3, 1.0);
-	DefaultProfile.Filters.setAreaCost(4, 1.0);
-	DefaultProfile.Filters.setAreaCost(5, 1.0);
+	DefaultProfile.Filters.setAreaCost(0, 1.0f);
+	DefaultProfile.Filters.setAreaCost(1, 1.0f);
+	DefaultProfile.Filters.setAreaCost(2, 1.0f);
+	DefaultProfile.Filters.setAreaCost(3, 1.0f);
+	DefaultProfile.Filters.setAreaCost(4, 1.0f);
+	DefaultProfile.Filters.setAreaCost(5, 1.0f);
 	BaseAgentProfiles.push_back(DefaultProfile);
 
 }

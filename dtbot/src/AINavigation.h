@@ -2,7 +2,7 @@
 // DTBot - Neoptolemus' Recast/Detour base GoldSrc bot, based on Botman's HPB bot template
 //
 // bot_navigation.h
-// 
+//
 // Handles all bot path finding and movement
 //
 
@@ -210,7 +210,7 @@ void FallMove(AIPlayer* pBot, const Vector StartPoint, const Vector EndPoint);
 // Called by NewMove, determines the movement direction and inputs required to climb a ladder to reach endpoint
 void LadderMove(AIPlayer* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight, unsigned char NextArea);
 
-Vector GetLadderMountPoint(const edict_t* MountLadder, const Vector StartPoint);
+Vector NAV_GetLadderMountPoint(const edict_t* MountLadder, const Vector StartPoint);
 
 // Called by NewMove, determines the movement direction and inputs required to use a moving platform to reach an end point
 void PlatformMove(AIPlayer* pBot, const Vector StartPoint, const Vector EndPoint, edict_t* PlatformEdict);
@@ -222,14 +222,13 @@ void CheckAndHandleBreakableObstruction(AIPlayer* pBot, const Vector MoveFrom, c
 
 void CheckAndHandleDoorObstruction(AIPlayer* pBot, bot_path_node CurrentPathNode);
 
-DynamicMapObject* UTIL_GetNearestObjectTrigger(const Vector Location, DynamicMapObject* Object, edict_t* IgnoreTrigger, bool bCheckBlockedByDoor);
+DynamicMapObject* UTIL_GetNearestObjectTrigger(const NavAgentProfile& NavProfile, const Vector Location, DynamicMapObject* Object, edict_t* IgnoreTrigger, bool bCheckBlockedByDoor);
 bool UTIL_IsPathBlockedByObject(const NavAgentProfile& NavProfile, const Vector StartLoc, const Vector EndLoc, DynamicMapObject* SearchObject);
 
 DynamicMapObject* UTIL_GetObjectBlockingPathPoint(bot_path_node* PathNode, DynamicMapObject* SearchObject, DynamicMapObject* IgnoreObject);
 DynamicMapObject* UTIL_GetObjectBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned int MovementFlag, DynamicMapObject* SearchObject, DynamicMapObject* IgnoreObject);
 edict_t* UTIL_GetBreakableBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchBreakable);
 edict_t* UTIL_GetBreakableBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned int MovementFlag, edict_t* SearchBreakable);
-
 
 Vector UTIL_GetButtonFloorLocation(const NavAgentProfile& NavProfile, const Vector UserLocation, edict_t* ButtonEdict);
 
@@ -303,7 +302,6 @@ bool NAV_GenerateNewMoveTaskPath(AIPlayer* pBot, const Vector NewDestination, co
 
 void SkipAheadInFlightPath(AIPlayer* pBot);
 
-
 // Walks directly towards the destination. No path finding, just raw movement input. Will detect obstacles and try to jump/duck under them.
 void MoveToWithoutNav(AIPlayer* pBot, const Vector Destination);
 
@@ -312,7 +310,7 @@ void HandlePlayerAvoidance(AIPlayer* pBot, const Vector MoveDestination);
 
 Vector AdjustPointForPathfinding(unsigned int NavMeshIndex, const Vector Point, const NavAgentProfile& NavProfile = GetBaseAgentProfile(NAV_PROFILE_DEFAULT));
 
-// Special path finding that takes the presence of phase gates into account 
+// Special path finding that takes the presence of phase gates into account
 dtStatus FindFlightPathToPoint(const NavAgentProfile& NavProfile, Vector FromLocation, Vector ToLocation, std::vector<bot_path_node>& path, float MaxAcceptableDistance);
 
 Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector TargetPoint, const Vector NextPoint, const float IterationStep, const float MinIdealHeight, const float MaxHeight);

@@ -279,8 +279,7 @@ void BotShootTarget(AIPlayer* pBot, AIWeaponType AttackWeapon, edict_t* Target)
 
 	if (!bWillHit && WEAP_IsHitScanWeapon(CurrentWeapon))
 	{
-
-		edict_t* HitEntity = UTIL_TraceEntity(pBot->Edict, pBot->CurrentEyePosition, pBot->CurrentEyePosition + (AimDir * WEAP_GetMaxIdealWeaponRange(CurrentWeapon)));
+		const edict_t* HitEntity = UTIL_TraceEntity(pBot->Edict, pBot->CurrentEyePosition, pBot->CurrentEyePosition + (AimDir * WEAP_GetMaxIdealWeaponRange(CurrentWeapon)));
 
 		bWillHit = (HitEntity == Target);
 	}
@@ -299,7 +298,7 @@ void BotShootLocation(AIPlayer* pBot, AIWeaponType AttackWeapon, const Vector Ta
 {
 	if (vIsZero(TargetLocation)) { return; }
 
-	AIWeaponType CurrentWeapon = WEAP_GetPlayerCurrentWeapon(pBot->Edict);
+	const AIWeaponType CurrentWeapon = WEAP_GetPlayerCurrentWeapon(pBot->Edict);
 
 	pBot->DesiredCombatWeapon = AttackWeapon;
 
@@ -323,7 +322,7 @@ void BotShootLocation(AIPlayer* pBot, AIWeaponType AttackWeapon, const Vector Ta
 	if (WEAP_IsWeaponAffectedByGravity(CurrentWeapon))
 	{
 		Vector AimLocation = TargetLocation;
-		Vector NewAimAngle = vGetLaunchAngleForProjectile(pBot->CurrentEyePosition, AimLocation, WEAP_GetProjectileVelocityForWeapon(CurrentWeapon), GOLDSRC_GRAVITY);
+		const Vector NewAimAngle = vGetLaunchAngleForProjectile(pBot->CurrentEyePosition, AimLocation, WEAP_GetProjectileVelocityForWeapon(CurrentWeapon), GOLDSRC_GRAVITY);
 
 		AimLocation = pBot->CurrentEyePosition + (NewAimAngle * 200.0f);
 
@@ -353,9 +352,9 @@ void BotShootLocation(AIPlayer* pBot, AIWeaponType AttackWeapon, const Vector Ta
 		return;
 	}
 
-	Vector AimDir = UTIL_GetForwardVector(pBot->Edict->v.v_angle);
+	const Vector AimDir = UTIL_GetForwardVector(pBot->Edict->v.v_angle);
 
-	float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
+	const float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
 
 	// 1.0 means exactly dead-on.
 	float MinAcceptableAccuracy = 0.9f;
@@ -391,7 +390,7 @@ void BotUpdateDesiredViewRotation(AIPlayer* pBot)
 	if (isnan(pBot->DesiredLookDirection.x))
 	{
 		pBot->DesiredLookDirection = ZERO_VECTOR;
-	} 
+	}
 
 	// Clamp the pitch and yaw to valid ranges
 
@@ -583,7 +582,7 @@ void BotUpdateView(AIPlayer* pBot)
 	UpdateAIPlayerViewFrustum(pBot);
 
 	// Logic here for detecting and tracking visibility of enemies or other objects
-	
+
 }
 
 bool IsEntityVisibleToBot(AIPlayer* pBot, const edict_t* Entity)
@@ -907,7 +906,7 @@ void RunAIPlayerFrame(AIPlayer* pBot)
 	else
 	{
 		AIPlayerStartGameThink(pBot);
-	}	
+	}
 
 	BotUpdateDesiredViewRotation(pBot);
 

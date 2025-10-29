@@ -58,7 +58,7 @@ typedef enum
 	WEAPON_TYPE_27 = 27,
 	WEAPON_TYPE_28 = 28,
 	WEAPON_TYPE_29 = 29,
-	WEAPON_TYPE_30 = 30,	
+	WEAPON_TYPE_30 = 30,
 
 	WEAPON_MAX = 31
 } AIWeaponType;
@@ -135,7 +135,7 @@ static const float max_ai_use_reach = 55.0f;
 // Minimum time a bot can wait between attempts to use something in seconds (when not holding the use key down)
 static const float min_ai_use_interval = 0.5f;
 
-// Minimum time a bot can wait between attempts to use something in seconds (when not holding the use key down)
+// Max height a bot can jump (including duck-jump)
 static const float max_ai_jump_height = 62.0f;
 
 // Affects the bot's pathfinding choices
@@ -216,7 +216,7 @@ typedef enum
 } DynamicMapObjectType;
 
 // Dynamic map object type
-typedef enum 
+typedef enum
 {
 	OBJECTSTATE_IDLE = 0,   // Object is idling and not going to move until triggered
 	OBJECTSTATE_PREPARING,	// Object has been triggered and is getting ready to move
@@ -354,7 +354,7 @@ typedef struct AVH_AI_PLAYER
 	nav_status BotNavInfo; // Bot's movement information, their current path, where in the path they are etc.
 
 	float LastTeleportTime = 0.0f; // Last time the bot teleported somewhere
-		
+
 	AIChatMessage ChatMessages[5]; // Bot can have up to 5 chat messages pending
 
 	Vector DesiredLookDirection = ZERO_VECTOR; // What view angle is the bot currently turning towards
